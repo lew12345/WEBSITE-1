@@ -1,0 +1,170 @@
+/* =========================================================================
+   CHEAT CHESS: lobby, deck builder, champion and shop
+   ========================================================================= */
+.coin{ display:inline-block; width:1em; height:1em; vertical-align:-.12em; margin-right:.35em; color:var(--gold);
+  background:radial-gradient(circle at 35% 30%, #fff6cc, #e8b64c 55%, #a86f1e); border-radius:50%; box-shadow:0 0 0 1px #5a3a0e, 0 0 6px rgba(232,193,106,.5); }
+.coin-row{ display:flex; align-items:center; gap:2px; font-weight:800; color:var(--gold-hi); font-size:.95rem; }
+.coin-row .cur{ color:var(--ink-mute); font-size:.78rem; margin-left:5px; font-weight:700; }
+.xp-float{ position:fixed; z-index:75; transform:translate(-50%,-50%); pointer-events:none; font-family:var(--f-head); font-weight:900; font-size:1.1rem;
+  color:var(--gold-hi); text-shadow:0 2px 6px rgba(0,0,0,.8); animation:xpRise 1.2s cubic-bezier(.2,.8,.3,1) forwards; }
+@keyframes xpRise{ 0%{ opacity:0; transform:translate(-50%,-50%) scale(.6); } 20%{ opacity:1; transform:translate(-50%,-90%) scale(1.1); }
+  100%{ opacity:0; transform:translate(-50%,-260%) scale(1); } }
+
+/* ---------------------------------------------------------------- lobby */
+.lobby-top{ display:flex; align-items:center; gap:14px; padding:4px 2px 14px; flex-shrink:0; }
+.lobby-hero{ width:86px; height:100px; flex-shrink:0; border-radius:16px; padding:4px; position:relative;
+  background:radial-gradient(circle at 50% 30%, #1d5c57, #08241f 75%); box-shadow:0 0 0 2px var(--gold), 0 0 0 3.5px #0a1f1d, 0 8px 20px rgba(0,0,0,.5); }
+.lobby-hero svg{ width:100%; height:100%; }
+.lobby-hero::after{ content:''; position:absolute; right:-6px; bottom:-6px; width:18px; height:18px; transform:rotate(45deg);
+  background:radial-gradient(circle at 35% 30%, #fff, #5fe8b4 45%, #0f5a48); box-shadow:0 0 0 2px #f5d27a, 0 0 0 3px #0a1f1d; }
+.lobby-info{ flex:1; min-width:0; }
+.lobby-rank{ font-family:var(--f-head); font-weight:900; font-size:1.15rem; letter-spacing:.05em; color:var(--gold-hi); text-shadow:0 2px 0 #041413; }
+.lobby-info .bar{ margin:7px 0 4px; }
+.lobby-xp{ font-size:.74rem; color:var(--ink-mute); font-weight:700; margin-bottom:7px; }
+.lobby-menu{ display:flex; flex-direction:column; gap:12px; padding:2px 2px 16px; }
+.lobby-btn{ justify-content:flex-start; gap:14px; padding-left:20px; }
+.lobby-btn .ico{ width:22px; height:22px; }
+.lobby-btn .badge{ margin-left:auto; }
+
+/* ---------------------------------------------------------------- deck */
+.deck-count{ font-family:var(--f-head); font-weight:900; font-size:1rem; color:var(--ink-mute); padding:7px 12px; border-radius:12px;
+  background:rgba(4,20,19,.7); box-shadow:0 0 0 1.5px rgba(232,193,106,.35); flex-shrink:0; }
+.deck-count.full{ color:#2a1606; background:linear-gradient(180deg,#fff0b8,#d9a441); box-shadow:0 0 0 1.5px #fff0b8; }
+/* the deck tray sits above the collection and takes cards dropped on it */
+.deck-tray{ flex-shrink:0; margin:2px 0 6px; padding:8px 8px 6px; border-radius:14px;
+  background:linear-gradient(180deg, rgba(8,34,31,.92), rgba(4,20,19,.86));
+  box-shadow:inset 0 0 0 1.5px rgba(232,193,106,.28), 0 6px 14px rgba(0,0,0,.35);
+  transition:box-shadow .18s ease, background .18s ease; }
+.deck-tray.drop-target{ box-shadow:inset 0 0 0 2px rgba(232,193,106,.6), 0 6px 18px rgba(0,0,0,.45); }
+.deck-tray.drop-hot{ background:linear-gradient(180deg, rgba(24,84,68,.95), rgba(8,40,34,.9));
+  box-shadow:inset 0 0 0 2.5px var(--mint), 0 0 26px rgba(95,232,180,.45); }
+.tray-head{ display:flex; align-items:center; gap:8px; padding:0 2px 6px; }
+.tray-head b{ font-family:var(--f-head); font-size:.82rem; letter-spacing:.06em; text-transform:uppercase; color:var(--gold-hi); }
+.tray-hint{ flex:1; font-size:.72rem; font-weight:700; color:var(--ink-mute); }
+.tray-head .mini{ padding:5px 10px; border-radius:10px; background:rgba(255,255,255,.07);
+  box-shadow:inset 0 0 0 1px rgba(232,193,106,.3); color:var(--ink); }
+.tray-head .mini.go.ready{ color:#2a1606; background:linear-gradient(180deg,#fff0b8,#d9a441); }
+.tray-strip{ display:flex; gap:5px; overflow-x:auto; overflow-y:hidden; padding:2px 2px 6px; scrollbar-width:none; }
+.tray-strip::-webkit-scrollbar{ display:none; }
+.tray-slot{ flex:0 0 auto; width:58px; height:81px; border-radius:7px; border:1.5px dashed rgba(232,193,106,.3); background:rgba(0,0,0,.2); }
+.tray-card{ flex:0 0 auto; position:relative; }
+.tray-card .tcg-face{ filter:none; }
+
+/* corner button: in or out of the deck */
+.card-pin{ position:absolute; z-index:7; right:-.32em; top:-.32em; width:1.8em; height:1.8em; border-radius:50%;
+  font-family:var(--f-head); font-weight:900; font-size:.9em; line-height:1; color:#04201a;
+  background:linear-gradient(180deg,#bfffe4,#3fd39b); box-shadow:0 0 0 .12em #04201a; }
+.card-pin.out{ color:#2a0b0b; background:linear-gradient(180deg,#ffd0cc,#e2705f); }
+.tray-card .card-pin{ font-size:.62em; }
+
+/* the card that follows your finger */
+.card-ghost{ position:fixed; z-index:90; margin:0; pointer-events:none; transform:translate(-50%,-50%) rotate(-4deg) scale(1.08);
+  filter:drop-shadow(0 12px 20px rgba(0,0,0,.6)); opacity:.94; transition:filter .15s ease; }
+.card-ghost.over{ filter:drop-shadow(0 0 16px rgba(95,232,180,.9)) drop-shadow(0 12px 20px rgba(0,0,0,.6)); }
+.tcg.drag-src{ opacity:.35; }
+.grid .tcg.picked{ box-shadow:0 0 0 3px var(--mint), 0 0 18px rgba(95,232,180,.6); border-radius:.8em; }
+.grid .tcg.picked::after{ content:'\2713'; position:absolute; z-index:6; top:-.4em; left:-.4em; width:1.7em; height:1.7em; border-radius:50%;
+  display:grid; place-items:center; font-weight:900; font-size:.9em; color:#04201a; background:linear-gradient(180deg,#bfffe4,#3fd39b); box-shadow:0 0 0 .14em #04201a; }
+.grid .tcg:not(.picked) .tcg-face{ filter:saturate(.7) brightness(.78); }
+.card-info{ position:absolute; z-index:7; right:-.3em; top:-.3em; width:1.8em; height:1.8em; border-radius:50%; font-family:var(--f-head); font-weight:900;
+  font-size:.85em; color:#2a1606; background:linear-gradient(180deg,#fff0b8,#d9a441); box-shadow:0 0 0 .12em #2a1606; }
+
+/* ---------------------------------------------------------------- champion */
+.avatar-stage{ display:grid; place-items:center; padding:6px 0 10px; flex-shrink:0; }
+#avatarPreview{ width:min(42vw,190px); filter:drop-shadow(0 12px 18px rgba(0,0,0,.55)); animation:heroIn .6s cubic-bezier(.3,.7,.3,1.2) both; }
+#avatarPreview svg{ width:100%; height:auto; }
+@keyframes heroIn{ from{ opacity:0; transform:translateY(18px) scale(.9); } }
+.av-float{ animation:avFloat 3s ease-in-out infinite; }
+@keyframes avFloat{ 50%{ transform:translateY(-5px); } }
+.av-glow{ animation:avGlow 2.4s ease-in-out infinite; }
+.av-rune{ animation:avGlow 2s ease-in-out infinite; }
+@keyframes avGlow{ 50%{ opacity:.45; } }
+.pick-row{ display:flex; align-items:center; gap:10px; padding:10px 2px; border-top:1px solid rgba(232,193,106,.14); }
+.pick-row > span{ width:78px; flex-shrink:0; font-family:var(--f-head); font-weight:700; font-size:.78rem; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); }
+.picks{ display:flex; gap:8px; overflow-x:auto; padding:2px; scrollbar-width:none; }
+.picks::-webkit-scrollbar{ display:none; }
+.picks.wide{ flex-wrap:wrap; }
+.pick{ flex-shrink:0; border-radius:10px; box-shadow:0 0 0 1.5px var(--gold-lo); background:rgba(4,20,19,.6); }
+.pick.on{ box-shadow:0 0 0 2.5px var(--gold-hi), 0 0 14px rgba(255,220,130,.55); }
+.pick.dot{ width:34px; height:34px; border-radius:50%; }
+.pick.av{ width:46px; height:52px; overflow:hidden; display:grid; place-items:center; }
+.pick.av svg{ width:150%; height:150%; margin-top:14%; }
+
+/* ---------------------------------------------------------------- shop */
+.shop-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:12px; padding:4px 0 16px; }
+.shop-item{ display:flex; flex-direction:column; align-items:center; text-align:center; padding:12px 10px 10px; border-radius:16px;
+  background:linear-gradient(180deg,rgba(18,63,59,.9),rgba(8,36,34,.92)); box-shadow:0 0 0 1.5px rgba(232,193,106,.35); animation:riseIn .4s cubic-bezier(.3,.7,.3,1) both; }
+.shop-item.on{ box-shadow:0 0 0 2px var(--gold), 0 0 18px rgba(232,193,106,.3); }
+.shop-item.premium{ background:linear-gradient(180deg,rgba(60,30,80,.92),rgba(24,10,36,.94)); box-shadow:0 0 0 1.5px #c77dff; }
+.set-preview{ display:flex; align-items:flex-end; justify-content:center; gap:2px; height:72px; }
+.pv-piece{ width:38px; height:38px; }
+.pv-piece:nth-child(1){ width:52px; height:52px; }
+.pv-piece svg{ width:100%; height:100%; filter:drop-shadow(0 3px 3px rgba(0,0,0,.5)); }
+.av-preview{ height:92px; display:grid; place-items:center; }
+.av-preview svg{ height:100%; width:auto; filter:drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
+.shop-name{ font-family:var(--f-head); font-weight:900; font-size:.86rem; color:var(--gold-hi); margin-top:6px; }
+.legend-tag{ display:block; font-family:var(--f-body); font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; color:#e0b3ff; }
+.shop-desc{ font-size:.72rem; color:var(--ink-mute); font-weight:700; line-height:1.25; margin:4px 0 10px; min-height:2.5em; }
+.shop-buy{ width:100%; margin-top:auto; }
+.shop-buy .plaque{ width:100%; }
+.plaque.legendary{ background:linear-gradient(180deg,#b06bff,#5a2a9a); color:#fff3ff; }
+.hand-reveal{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap; padding:6px 0; }
+
+/* =========================================================================
+   The Hall: champion centre stage, play buttons at the bottom
+   ========================================================================= */
+.hall{ padding-bottom:calc(var(--safe-b) + 6px); }
+.hall-top{ display:flex; align-items:center; gap:12px; padding:2px 2px 8px; flex-shrink:0; }
+.hall-rank{ flex:1; min-width:0; }
+.hall-rank .bar{ margin:5px 0 3px; }
+.hall-stage{ flex:1; min-height:0; display:flex; align-items:center; justify-content:space-between; gap:6px; padding:4px 0; }
+.hall-stage .rail{ z-index:2; }
+/* The champion stands on the floor of the hall art, at the same share of the
+   screen whatever the device: the hall art is drawn with its floor line at
+   61% of the height, so his boots sit just below that. */
+.hero-wrap{ position:absolute; left:50%; bottom:30%; transform:translateX(-50%);
+  height:34%; display:flex; align-items:flex-end; justify-content:center; z-index:1; }
+.hall-stage{ align-items:flex-start; padding-top:8px; }
+.hero3d{ height:100%; width:auto; aspect-ratio:256/384; position:relative; display:block; background:none; padding:0; }
+.hero3d::after{ content:''; position:absolute; left:50%; bottom:-2%; width:70%; height:9%; transform:translateX(-50%);
+  background:radial-gradient(ellipse at center, rgba(95,232,180,.45), transparent 70%); filter:blur(3px); }
+.hero3d:active .hero-inner{ transform:scale(.97); }
+.hero-inner{ position:relative; width:100%; height:100%; transition:transform .18s ease; animation:heroIdle 4.5s ease-in-out infinite;
+  transform-origin:center bottom; filter:drop-shadow(0 14px 18px rgba(0,0,0,.55)); }
+.hero-face{ position:absolute; inset:0; }
+/* breathing, anchored at the boots, so he never lifts off the floor */
+@keyframes heroIdle{ 50%{ transform:scale(1.014); } }
+.hero-face svg{ width:100%; height:100%; }
+.rail{ display:flex; flex-direction:column; gap:14px; flex-shrink:0; }
+.rail-btn{ position:relative; width:92px; min-height:78px; padding:12px 6px 10px; border-radius:16px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+  background:linear-gradient(180deg,rgba(35,102,96,.92),rgba(11,44,41,.94));
+  box-shadow:0 0 0 1.5px var(--gold-lo), inset 0 1px 0 rgba(255,255,255,.18), 0 6px 14px rgba(0,0,0,.45); }
+.rail-btn:active{ transform:scale(.95); }
+.rail-ico{ width:30px; height:30px; color:var(--gold-hi); }
+.rail-ico svg{ width:100%; height:100%; }
+.rail-label{ font-family:var(--f-head); font-weight:700; font-size:.74rem; letter-spacing:.04em; color:var(--ink); }
+.rail-btn .badge{ position:absolute; top:-6px; right:-6px; margin:0; font-size:.6rem; padding:2px 6px; }
+.hall-play{ display:flex; flex-direction:column; gap:10px; flex-shrink:0; padding:6px 2px 0; }
+.plaque.big{ min-height:62px; font-size:1.15rem; letter-spacing:.08em; }
+.hall-foot{ display:flex; justify-content:center; gap:22px; padding:10px 0 2px; flex-shrink:0; }
+.mini{ display:flex; align-items:center; gap:6px; font-size:.76rem; font-weight:800; color:var(--ink-mute); letter-spacing:.04em; }
+.mini span{ width:15px; height:15px; display:inline-block; }
+.mini svg{ width:100%; height:100%; }
+.mini:active{ color:var(--gold-hi); }
+
+/* ---------------------------------------------------------- legendary pack */
+.pack-banner{ grid-column:1 / -1; display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:16px;
+  background:linear-gradient(120deg,rgba(80,36,110,.95),rgba(30,12,48,.95)); box-shadow:0 0 0 1.5px #c77dff, 0 8px 20px rgba(0,0,0,.4); }
+.pack-icons{ display:flex; align-items:center; gap:2px; flex-shrink:0; }
+.pack-icons .pv-piece, .pack-icons .pv-mini{ width:34px; height:44px; }
+.pack-icons svg{ width:100%; height:100%; }
+.pack-text{ flex:1; min-width:0; }
+.pack-text b{ display:block; font-family:var(--f-head); font-size:.92rem; color:#f0d9ff; }
+.pack-text span{ font-size:.72rem; color:#c9aee0; font-weight:700; line-height:1.2; }
+.pack-list{ display:flex; flex-direction:column; gap:6px; margin:12px 0; }
+.pack-row{ display:flex; justify-content:space-between; padding:7px 12px; border-radius:10px; background:rgba(4,20,19,.55); font-size:.85rem; }
+.pack-row b{ color:var(--gold-hi); font-family:var(--f-head); font-weight:700; }
+.pack-row span{ color:var(--ink-mute); font-weight:700; font-size:.78rem; }
+
+/* shorter screens: keep his boots clear of the play buttons */
+@media (max-height:760px){ .hero-wrap{ height:29%; bottom:32%; } }

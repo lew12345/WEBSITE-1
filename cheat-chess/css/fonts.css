@@ -1,0 +1,9 @@
+/* Local copies of the fonts (optional). Run tools/fetch-fonts.py once to download them
+   into www/fonts so the Android app looks right even when offline.
+   If the files are missing the app falls back to Google Fonts, then to Georgia. */
+@font-face{ font-family:'CinzelLocal'; src:url('../fonts/cinzel-700.woff2') format('woff2'); font-weight:600 700; font-display:swap; }
+@font-face{ font-family:'CinzelLocal'; src:url('../fonts/cinzel-900.woff2') format('woff2'); font-weight:800 900; font-display:swap; }
+@font-face{ font-family:'CinzelDecorativeLocal'; src:url('../fonts/cinzel-decorative-900.woff2') format('woff2'); font-weight:700 900; font-display:swap; }
+@font-face{ font-family:'AlegreyaSansLocal'; src:url('../fonts/alegreya-sans-500.woff2') format('woff2'); font-weight:400 500; font-display:swap; }
+@font-face{ font-family:'AlegreyaSansLocal'; src:url('../fonts/alegreya-sans-700.woff2') format('woff2'); font-weight:600 700; font-display:swap; }
+@font-face{ font-family:'AlegreyaSansLocal'; src:url('../fonts/alegreya-sans-800.woff2') format('woff2'); font-weight:800 900; font-display:swap; }
