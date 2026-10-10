@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#041413">
+<!-- the page itself is always revalidated; js, css and art carry version tags -->
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<meta name="description" content="Cheat Chess: normal chess, except both players hold secret cheat cards.">
+<title>Cheat Chess</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cheat Chess">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="css/fonts.css?v=20261009202502">
+<link rel="stylesheet" href="css/style.css?v=20261009202502">
+<link rel="stylesheet" href="css/extras.css?v=20261009202502">
+<link rel="stylesheet" href="css/lobby.css?v=20261009202502">
+<link rel="stylesheet" href="css/battle.css?v=20261009202502">
+</head>
+<body class="intro-on">
+
+<!-- ============ painted background scene ============ -->
+<div id="scene">
+  <svg viewBox="0 0 400 800" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#051616"/><stop offset=".35" stop-color="#0d3533"/><stop offset=".58" stop-color="#236c62"/><stop offset=".72" stop-color="#6fbf9c"/><stop offset=".8" stop-color="#a8e0bf"/>
+      </linearGradient>
+      <radialGradient id="sunG" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#f7ffe6" stop-opacity=".95"/><stop offset=".25" stop-color="#d8ffd9" stop-opacity=".55"/><stop offset="1" stop-color="#8fe3c0" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="mistG" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#dff" stop-opacity="0"/><stop offset=".5" stop-color="#dff" stop-opacity=".16"/><stop offset="1" stop-color="#dff" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <rect width="400" height="800" fill="url(#skyG)"/>
+    <g fill="#e8fff4" opacity=".75">
+      <circle cx="30" cy="60" r="1.2"/><circle cx="90" cy="120" r=".9"/><circle cx="150" cy="40" r="1.4"/><circle cx="210" cy="95" r=".8"/><circle cx="270" cy="30" r="1.1"/>
+      <circle cx="330" cy="80" r="1.5"/><circle cx="380" cy="150" r=".9"/><circle cx="60" cy="190" r="1"/><circle cx="120" cy="250" r=".8"/><circle cx="350" cy="230" r="1.1"/>
+      <circle cx="240" cy="180" r=".7"/><circle cx="20" cy="300" r=".9"/><circle cx="300" cy="300" r=".8"/><circle cx="180" cy="160" r="1.2"/>
+      <path d="M318 118l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" opacity=".8"/><path d="M72 88l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z" opacity=".7"/>
+    </g>
+    <g class="sunpulse"><circle cx="260" cy="470" r="190" fill="url(#sunG)"/><circle cx="260" cy="470" r="24" fill="#f4ffe8" opacity=".9"/></g>
+    <path d="M0 520 L40 480 L80 505 L130 440 L175 490 L220 455 L262 500 L310 430 L360 480 L400 455 V800 H0Z" fill="#3f8a7c" opacity=".55"/>
+    <path d="M0 560 L50 520 L95 545 L140 500 L190 548 L240 510 L300 552 L350 515 L400 540 V800 H0Z" fill="#276a60" opacity=".85"/>
+    <!-- castle on the ridge -->
+    <g fill="#1a4d48">
+      <path d="M232 540 V505 h6 v-8 h4 v8 h6 v-18 l7-12 7 12 v18 h6 v-8 h4 v8 h6 v35z"/>
+      <path d="M252 487 v-25 l3-8 3 8 v25z"/><circle cx="255" cy="452" r="1.4" fill="#f4ffe8"/>
+      <rect x="258" y="508" width="3" height="5" fill="#ffe9a8" opacity=".85"/><rect x="243" y="515" width="2.5" height="4" fill="#ffe9a8" opacity=".7"/>
+    </g>
+    <rect class="mist" x="-60" y="540" width="520" height="40" fill="url(#mistG)"/>
+    <path d="M0 610 Q60 575 120 598 T240 590 T400 580 V800 H0Z" fill="#17463f"/>
+    <g fill="#0f3530">
+      <path d="M20 612 l10-40 10 40z"/><path d="M36 606 l8-30 8 30z"/><path d="M330 598 l11-44 11 44z"/><path d="M352 600 l8-30 8 30z"/>
+      <path d="M160 596 l7-26 7 26z"/><path d="M290 602 l6-22 6 22z"/><path d="M96 604 l6-24 6 24z"/>
+    </g>
+    <rect class="mist m2" x="-60" y="610" width="520" height="50" fill="url(#mistG)"/>
+    <path d="M0 680 Q90 640 190 662 T400 650 V800 H0Z" fill="#0b2926"/>
+    <g fill="#071d1b"><path d="M-10 700 l22-80 22 80z"/><path d="M26 704 l15-52 15 52z"/><path d="M360 700 l20-76 20 76z"/><path d="M340 706 l12-44 12 44z"/></g>
+    <path d="M0 740 Q120 705 240 728 T400 715 V800 H0Z" fill="#051514"/>
+  </svg>
+  <div class="veil"></div>
+  <div id="fireflies"></div>
+</div>
+
+<main id="app">
+  <!-- ============ TITLE ============ -->
+  <section id="scrTitle" class="screen active">
+    <div class="title-top">
+      <div class="title-cards" id="titleCards"></div>
+      <div class="logo">
+        <div class="logo-small">CHEAT</div>
+        <div class="logo-big">Chess</div>
+        <div class="logo-tag"><span id="tagText">ARLO GAMES</span></div>
+      </div>
+    </div>
+    <nav class="title-menu">
+      <button class="plaque primary big" data-act="lobby"><span class="ico" data-icon="play"></span>Enter the Hall</button>
+    </nav>
+    <p class="title-foot">Normal chess, except each player holds 3 secret cheat cards.</p>
+  </section>
+
+  <!-- ============ GAME ============ -->
+  <section id="scrGame" class="screen">
+    <header class="topbar">
+      <button class="icon-btn" id="btnMenu" aria-label="Menu" data-icon="menu"></button>
+      <div class="status-plaque" id="status">Your turn</div>
+      <button class="icon-btn" id="btnSound" aria-label="Sound"></button>
+    </header>
+    <div class="player-row fighter opp" id="rowOpp">
+      <div class="champ" id="crestOpp"></div>
+      <div class="pinfo"><div class="pname" id="nameOpp"></div><div class="captures" id="capOpp"></div></div>
+      <div class="opp-hand" id="oppHand"></div>
+    </div>
+    <div class="board-frame" id="boardFrame">
+      <span class="orn tl"></span><span class="orn tr"></span><span class="orn bl"></span><span class="orn br"></span>
+      <div id="board"></div>
+      <div id="fxLayer"></div>
+      <div class="deck-pile" id="deckPile"></div>
+    </div>
+    <div class="player-row fighter me" id="rowMe">
+      <div class="champ" id="crestMe"></div>
+      <div class="pinfo"><div class="pname" id="nameMe"></div><div class="captures" id="capMe"></div></div>
+      <div class="ticker" id="ticker"></div>
+    </div>
+    <div class="hand-zone">
+      <div class="hand" id="hand"></div>
+      <div class="target-bar" id="targetBar">
+        <div class="tb-art" id="tbArt"></div>
+        <div class="tb-txt"><div class="tb-name" id="tbName"></div><div class="tb-prompt" id="tbPrompt"></div><div class="tb-step" id="tbStep"></div></div>
+        <button class="plaque small danger" id="tbCancel">Cancel</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ THE HALL ============ -->
+  <section id="scrLobby" class="screen hall">
+    <div id="hallScene" aria-hidden="true">
+      <svg viewBox="0 0 400 700" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="hallWall" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="var(--h-wall1, #0c2320)"/><stop offset=".55" stop-color="var(--h-wall2, #143530)"/><stop offset="1" stop-color="var(--h-wall3, #0a1c1a)"/>
+          </linearGradient>
+          <linearGradient id="hallPillar" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="var(--h-pil1, #0d2521)"/><stop offset=".35" stop-color="var(--h-stone, #2b524a)"/><stop offset=".6" stop-color="var(--h-pil3, #1c3b36)"/><stop offset="1" stop-color="var(--h-pil4, #0a1e1b)"/>
+          </linearGradient>
+          <linearGradient id="hallNight" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="var(--h-sky1, #071b28)"/><stop offset=".6" stop-color="var(--h-sky2, #14465a)"/><stop offset="1" stop-color="var(--h-sky3, #3f8f86)"/>
+          </linearGradient>
+          <linearGradient id="hallBeam" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="var(--h-beam, #cfe9d8)" stop-opacity=".30"/><stop offset="1" stop-color="var(--h-beam, #cfe9d8)" stop-opacity="0"/>
+          </linearGradient>
+          <clipPath id="clipTorchA"><rect x="66" y="178" width="40" height="74"/></clipPath>
+          <clipPath id="clipTorchB"><rect x="294" y="178" width="40" height="74"/></clipPath>
+          <linearGradient id="carpetShade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#000" stop-opacity=".55"/><stop offset=".35" stop-color="#000" stop-opacity=".12"/>
+            <stop offset="1" stop-color="var(--h-rugWarm, #ffb46b)" stop-opacity=".10"/>
+          </linearGradient>
+          <linearGradient id="hallBanner" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="var(--h-ban1, #1f6e63)"/><stop offset="1" stop-color="var(--h-ban2, #0d3a34)"/>
+          </linearGradient>
+          <radialGradient id="torchGlow" cx=".5" cy=".5" r=".5">
+            <stop offset="0" stop-color="var(--h-glow1, #ffcf7a)" stop-opacity=".75"/><stop offset="1" stop-color="var(--h-glow2, #ff9a3a)" stop-opacity="0"/>
+          </radialGradient>
+          <radialGradient id="floorPool" cx=".5" cy=".5" r=".5">
+            <stop offset="0" stop-color="var(--h-pool, #ffe6b0)" stop-opacity=".28"/><stop offset="1" stop-color="var(--h-pool, #ffe6b0)" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+
+        <rect width="400" height="700" fill="url(#hallWall)"/>
+        <g stroke="var(--h-line, #0a1f1c)" stroke-width="1.4" opacity=".5">
+          <path d="M0 60H400M0 120H400M0 180H400M0 240H400M0 300H400M0 360H400"/>
+          <path d="M40 60v60M120 0v60M200 60v60M280 0v60M360 60v60M40 180v60M120 120v60M200 180v60M280 120v60M360 180v60M40 300v60M120 240v60M200 300v60M280 240v60M360 300v60"/>
+        </g>
+
+        <path d="M150 330V190a50 50 0 0 1 100 0v140z" fill="url(#hallNight)"/>
+        <circle cx="222" cy="186" r="20" fill="var(--h-moon, #f2ffe8)" opacity=".92"/>
+        <circle cx="214" cy="180" r="4" fill="var(--h-moonShade, #cfe4c4)" opacity=".5"/>
+        <g fill="var(--h-stars, #eaffff)" opacity=".85">
+          <circle cx="172" cy="210" r="1.6"/><circle cx="186" cy="168" r="1.2"/><circle cx="236" cy="240" r="1.4"/>
+          <circle cx="166" cy="266" r="1.1"/><circle cx="242" cy="160" r="1"/><circle cx="196" cy="290" r="1.3"/>
+        </g>
+        <path d="M150 330V190a50 50 0 0 1 100 0v140" fill="none" stroke="var(--h-frame1, #26514a)" stroke-width="10"/>
+        <path d="M150 330V190a50 50 0 0 1 100 0v140" fill="none" stroke="var(--h-frame2, #3b7a6f)" stroke-width="3"/>
+        <g stroke="var(--h-frame1, #26514a)" stroke-width="5"><path d="M200 150v180M150 250h100"/></g>
+        <path d="M150 330 L120 700 L280 700 L250 330Z" fill="url(#hallBeam)"/>
+
+        <g>
+          <rect x="18" y="0" width="64" height="430" fill="url(#hallPillar)"/>
+          <rect x="8" y="96" width="84" height="20" rx="4" fill="var(--h-stone, #2b524a)" stroke="var(--h-line, #0a1f1c)" stroke-width="2"/>
+          <rect x="8" y="404" width="84" height="26" rx="4" fill="var(--h-stone, #2b524a)" stroke="var(--h-line, #0a1f1c)" stroke-width="2"/>
+          <rect x="318" y="0" width="64" height="430" fill="url(#hallPillar)"/>
+          <rect x="308" y="96" width="84" height="20" rx="4" fill="var(--h-stone, #2b524a)" stroke="var(--h-line, #0a1f1c)" stroke-width="2"/>
+          <rect x="308" y="404" width="84" height="26" rx="4" fill="var(--h-stone, #2b524a)" stroke="var(--h-line, #0a1f1c)" stroke-width="2"/>
+        </g>
+
+        <g>
+          <path d="M96 60h70v150l-35-22-35 22z" fill="url(#hallBanner)" stroke="var(--h-line, #0a1f1c)" stroke-width="2"/>
+          <path d="M234 60h70v150l-35-22-35 22z" fill="url(#hallBanner)" stroke="var(--h-line, #0a1f1c)" stroke-width="2"/>
+          <rect x="90" y="52" width="82" height="10" rx="3" fill="var(--h-rod, #7a5320)" stroke="var(--h-rodLine, #2a1606)" stroke-width="2"/>
+          <rect x="228" y="52" width="82" height="10" rx="3" fill="var(--h-rod, #7a5320)" stroke="var(--h-rodLine, #2a1606)" stroke-width="2"/>
+          <g fill="var(--h-crest, #e8c16a)" opacity=".92">
+            <g class="hall-crest" transform="translate(131 112) scale(1.75)"></g>
+            <g class="hall-crest" transform="translate(269 112) scale(1.75)"></g>
+          </g>
+        </g>
+
+        <g class="torch a">
+          <circle cx="86" cy="246" r="70" fill="url(#torchGlow)" class="torch-glow"/>
+          <rect x="78" y="252" width="16" height="34" rx="4" fill="var(--h-wood, #5a3517)" stroke="#20120a" stroke-width="2"/>
+          <ellipse cx="86" cy="254" rx="11" ry="4" fill="#2a1a0c"/>
+          <g clip-path="url(#clipTorchA)">
+            <image class="fire-sprite" href="art/fx/fire.png?v=6" x="66.0" y="178" width="320" height="74" preserveAspectRatio="none" style="--fw:40px;animation-delay:0s"/>
+          </g>
+        </g>
+        <g class="torch b">
+          <circle cx="314" cy="246" r="70" fill="url(#torchGlow)" class="torch-glow"/>
+          <rect x="306" y="252" width="16" height="34" rx="4" fill="var(--h-wood, #5a3517)" stroke="#20120a" stroke-width="2"/>
+          <ellipse cx="314" cy="254" rx="11" ry="4" fill="#2a1a0c"/>
+          <g clip-path="url(#clipTorchB)">
+            <image class="fire-sprite" href="art/fx/fire.png?v=6" x="294.0" y="178" width="320" height="74" preserveAspectRatio="none" style="--fw:40px;animation-delay:-0.21s"/>
+          </g>
+        </g>
+
+        <path d="M0 430h400v270H0z" fill="var(--h-floor, #0a1f1c)"/>
+        <g class="hall-floor" stroke="var(--h-line, #0a1f1c)" stroke-width="0.8"><polygon points="-14.5,430 5.0,430 -43.8,443 -68.1,443" fill="var(--h-tileB, #122b27)"/><polygon points="5.0,430 24.5,430 -19.4,443 -43.8,443" fill="var(--h-tileA, #1d423c)"/><polygon points="24.5,430 44.0,430 5.0,443 -19.4,443" fill="var(--h-tileB, #122b27)"/><polygon points="44.0,430 63.5,430 29.4,443 5.0,443" fill="var(--h-tileA, #1d423c)"/><polygon points="63.5,430 83.0,430 53.8,443 29.4,443" fill="var(--h-tileB, #122b27)"/><polygon points="83.0,430 102.5,430 78.1,443 53.8,443" fill="var(--h-tileA, #1d423c)"/><polygon points="102.5,430 122.0,430 102.5,443 78.1,443" fill="var(--h-tileB, #122b27)"/><polygon points="122.0,430 141.5,430 126.9,443 102.5,443" fill="var(--h-tileA, #1d423c)"/><polygon points="141.5,430 161.0,430 151.2,443 126.9,443" fill="var(--h-tileB, #122b27)"/><polygon points="161.0,430 180.5,430 175.6,443 151.2,443" fill="var(--h-tileA, #1d423c)"/><polygon points="180.5,430 200.0,430 200.0,443 175.6,443" fill="var(--h-tileB, #122b27)"/><polygon points="200.0,430 219.5,430 224.4,443 200.0,443" fill="var(--h-tileA, #1d423c)"/><polygon points="219.5,430 239.0,430 248.8,443 224.4,443" fill="var(--h-tileB, #122b27)"/><polygon points="239.0,430 258.5,430 273.1,443 248.8,443" fill="var(--h-tileA, #1d423c)"/><polygon points="258.5,430 278.0,430 297.5,443 273.1,443" fill="var(--h-tileB, #122b27)"/><polygon points="278.0,430 297.5,430 321.9,443 297.5,443" fill="var(--h-tileA, #1d423c)"/><polygon points="297.5,430 317.0,430 346.2,443 321.9,443" fill="var(--h-tileB, #122b27)"/><polygon points="317.0,430 336.5,430 370.6,443 346.2,443" fill="var(--h-tileA, #1d423c)"/><polygon points="336.5,430 356.0,430 395.0,443 370.6,443" fill="var(--h-tileB, #122b27)"/><polygon points="356.0,430 375.5,430 419.4,443 395.0,443" fill="var(--h-tileA, #1d423c)"/><polygon points="375.5,430 395.0,430 443.8,443 419.4,443" fill="var(--h-tileB, #122b27)"/><polygon points="395.0,430 414.5,430 468.1,443 443.8,443" fill="var(--h-tileA, #1d423c)"/><polygon points="-19.4,443 5.0,443 -82.0,472 -117.2,472" fill="var(--h-tileA, #1d423c)"/><polygon points="5.0,443 29.4,443 -46.8,472 -82.0,472" fill="var(--h-tileB, #122b27)"/><polygon points="29.4,443 53.8,443 -11.5,472 -46.8,472" fill="var(--h-tileA, #1d423c)"/><polygon points="53.8,443 78.1,443 23.8,472 -11.5,472" fill="var(--h-tileB, #122b27)"/><polygon points="78.1,443 102.5,443 59.0,472 23.8,472" fill="var(--h-tileA, #1d423c)"/><polygon points="102.5,443 126.9,443 94.2,472 59.0,472" fill="var(--h-tileB, #122b27)"/><polygon points="126.9,443 151.2,443 129.5,472 94.2,472" fill="var(--h-tileA, #1d423c)"/><polygon points="151.2,443 175.6,443 164.8,472 129.5,472" fill="var(--h-tileB, #122b27)"/><polygon points="175.6,443 200.0,443 200.0,472 164.8,472" fill="var(--h-tileA, #1d423c)"/><polygon points="200.0,443 224.4,443 235.2,472 200.0,472" fill="var(--h-tileB, #122b27)"/><polygon points="224.4,443 248.8,443 270.5,472 235.2,472" fill="var(--h-tileA, #1d423c)"/><polygon points="248.8,443 273.1,443 305.8,472 270.5,472" fill="var(--h-tileB, #122b27)"/><polygon points="273.1,443 297.5,443 341.0,472 305.8,472" fill="var(--h-tileA, #1d423c)"/><polygon points="297.5,443 321.9,443 376.2,472 341.0,472" fill="var(--h-tileB, #122b27)"/><polygon points="321.9,443 346.2,443 411.5,472 376.2,472" fill="var(--h-tileA, #1d423c)"/><polygon points="346.2,443 370.6,443 446.8,472 411.5,472" fill="var(--h-tileB, #122b27)"/><polygon points="370.6,443 395.0,443 482.0,472 446.8,472" fill="var(--h-tileA, #1d423c)"/><polygon points="395.0,443 419.4,443 517.2,472 482.0,472" fill="var(--h-tileB, #122b27)"/><polygon points="-11.5,472 23.8,472 -53.1,513 -103.8,513" fill="var(--h-tileA, #1d423c)"/><polygon points="23.8,472 59.0,472 -2.5,513 -53.1,513" fill="var(--h-tileB, #122b27)"/><polygon points="59.0,472 94.2,472 48.1,513 -2.5,513" fill="var(--h-tileA, #1d423c)"/><polygon points="94.2,472 129.5,472 98.8,513 48.1,513" fill="var(--h-tileB, #122b27)"/><polygon points="129.5,472 164.8,472 149.4,513 98.8,513" fill="var(--h-tileA, #1d423c)"/><polygon points="164.8,472 200.0,472 200.0,513 149.4,513" fill="var(--h-tileB, #122b27)"/><polygon points="200.0,472 235.2,472 250.6,513 200.0,513" fill="var(--h-tileA, #1d423c)"/><polygon points="235.2,472 270.5,472 301.2,513 250.6,513" fill="var(--h-tileB, #122b27)"/><polygon points="270.5,472 305.8,472 351.9,513 301.2,513" fill="var(--h-tileA, #1d423c)"/><polygon points="305.8,472 341.0,472 402.5,513 351.9,513" fill="var(--h-tileB, #122b27)"/><polygon points="341.0,472 376.2,472 453.1,513 402.5,513" fill="var(--h-tileA, #1d423c)"/><polygon points="376.2,472 411.5,472 503.8,513 453.1,513" fill="var(--h-tileB, #122b27)"/><polygon points="-53.1,513 -2.5,513 -82.0,566 -152.5,566" fill="var(--h-tileA, #1d423c)"/><polygon points="-2.5,513 48.1,513 -11.5,566 -82.0,566" fill="var(--h-tileB, #122b27)"/><polygon points="48.1,513 98.8,513 59.0,566 -11.5,566" fill="var(--h-tileA, #1d423c)"/><polygon points="98.8,513 149.4,513 129.5,566 59.0,566" fill="var(--h-tileB, #122b27)"/><polygon points="149.4,513 200.0,513 200.0,566 129.5,566" fill="var(--h-tileA, #1d423c)"/><polygon points="200.0,513 250.6,513 270.5,566 200.0,566" fill="var(--h-tileB, #122b27)"/><polygon points="250.6,513 301.2,513 341.0,566 270.5,566" fill="var(--h-tileA, #1d423c)"/><polygon points="301.2,513 351.9,513 411.5,566 341.0,566" fill="var(--h-tileB, #122b27)"/><polygon points="351.9,513 402.5,513 482.0,566 411.5,566" fill="var(--h-tileA, #1d423c)"/><polygon points="402.5,513 453.1,513 552.5,566 482.0,566" fill="var(--h-tileB, #122b27)"/><polygon points="-11.5,566 59.0,566 12.5,628 -81.2,628" fill="var(--h-tileB, #122b27)"/><polygon points="59.0,566 129.5,566 106.2,628 12.5,628" fill="var(--h-tileA, #1d423c)"/><polygon points="129.5,566 200.0,566 200.0,628 106.2,628" fill="var(--h-tileB, #122b27)"/><polygon points="200.0,566 270.5,566 293.8,628 200.0,628" fill="var(--h-tileA, #1d423c)"/><polygon points="270.5,566 341.0,566 387.5,628 293.8,628" fill="var(--h-tileB, #122b27)"/><polygon points="341.0,566 411.5,566 481.2,628 387.5,628" fill="var(--h-tileA, #1d423c)"/><polygon points="-81.2,628 12.5,628 -41.5,700 -162.2,700" fill="var(--h-tileA, #1d423c)"/><polygon points="12.5,628 106.2,628 79.2,700 -41.5,700" fill="var(--h-tileB, #122b27)"/><polygon points="106.2,628 200.0,628 200.0,700 79.2,700" fill="var(--h-tileA, #1d423c)"/><polygon points="200.0,628 293.8,628 320.8,700 200.0,700" fill="var(--h-tileB, #122b27)"/><polygon points="293.8,628 387.5,628 441.5,700 320.8,700" fill="var(--h-tileA, #1d423c)"/><polygon points="387.5,628 481.2,628 562.2,700 441.5,700" fill="var(--h-tileB, #122b27)"/></g>
+        <g class="carpet">
+          <polygon points="150,430 250,430 253,443 147,443" fill="var(--h-rug1, #6b2632)"/><path d="M147 443H253" stroke="var(--h-rugLine, #8d3a42)" stroke-width="1.2" opacity=".75"/><polygon points="147,443 253,443 258,472 142,472" fill="var(--h-rug2, #5a1f2a)"/><path d="M142 472H258" stroke="var(--h-rugLine, #8d3a42)" stroke-width="1.6" opacity=".75"/><polygon points="142,472 258,472 267,513 133,513" fill="var(--h-rug1, #6b2632)"/><path d="M133 513H267" stroke="var(--h-rugLine, #8d3a42)" stroke-width="2.1" opacity=".75"/><polygon points="133,513 267,513 277,566 123,566" fill="var(--h-rug2, #5a1f2a)"/><path d="M123 566H277" stroke="var(--h-rugLine, #8d3a42)" stroke-width="2.5" opacity=".75"/><polygon points="123,566 277,566 290,628 110,628" fill="var(--h-rug1, #6b2632)"/><path d="M110 628H290" stroke="var(--h-rugLine, #8d3a42)" stroke-width="3.0" opacity=".75"/><polygon points="110,628 290,628 304,700 96,700" fill="var(--h-rug2, #5a1f2a)"/><path d="M96 700H304" stroke="var(--h-rugLine, #8d3a42)" stroke-width="3.4" opacity=".75"/>
+          <polyline points="162,430 160,443 155,472 149,513 141,566 131,628 120,700" fill="none" stroke="var(--h-rugTrim, #c9963c)" stroke-width="2.6" opacity=".85"/>
+          <polyline points="238,430 240,443 245,472 251,513 259,566 269,628 280,700" fill="none" stroke="var(--h-rugTrim, #c9963c)" stroke-width="2.6" opacity=".85"/>
+          <polygon points="150,430 250,430 304,700 96,700" fill="url(#carpetShade)"/>
+          <path d="M96 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M106 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M116 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M126 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M136 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M146 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M155 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M165 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M175 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M185 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M195 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M205 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M215 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M225 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M235 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M245 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M254 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M264 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M274 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M284 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M294 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/><path d="M304 694v10" stroke="var(--h-fringe, #d9b35c)" stroke-width="2.4" opacity=".7"/>
+        </g>
+        <ellipse cx="200" cy="470" rx="150" ry="46" fill="url(#floorPool)"/>
+        <g fill="var(--h-motes, #fff3c4)" opacity=".55" class="motes">
+          <circle cx="120" cy="360" r="2"/><circle cx="300" cy="300" r="1.6"/><circle cx="240" cy="420" r="1.8"/>
+          <circle cx="80" cy="330" r="1.4"/><circle cx="330" cy="400" r="2"/><circle cx="170" cy="280" r="1.4"/>
+        </g>
+      </svg>
+      <div class="hall-decor" id="hallDecor"></div>
+    </div>
+    <div class="hall-top">
+      <button class="icon-btn" data-back aria-label="Back to title" data-icon="back"></button>
+      <div class="hall-rank">
+        <div class="lobby-rank" id="lobbyRank"></div>
+        <div class="bar"><i id="lobbyXpBar"></i></div>
+        <div class="lobby-xp" id="lobbyXp"></div>
+      </div>
+      <div class="coin-row"><span class="coin"></span><b id="lobbyGambits">0</b></div>
+    </div>
+
+    <div class="hero-wrap">
+      <button class="hero3d" id="lobbyHero" aria-label="Your champion">
+        <div class="hero-inner" id="heroInner">
+          <div class="hero-face front" id="heroFront"></div>
+        </div>
+      </button>
+    </div>
+
+    <div class="hall-stage">
+      <div class="rail left" id="railLeft"></div>
+      <div class="rail right" id="railRight"></div>
+    </div>
+
+    <div class="hall-play">
+      <button class="plaque primary big" data-act="vsai"><span class="ico" data-icon="play"></span>Play</button>
+      <div class="play-row">
+        <button class="plaque" data-act="friends" id="btnFriends"><span class="ico" data-icon="crown"></span>Play a Friend<span class="badge" id="friendsBadge"></span></button>
+        <button class="plaque" data-act="pvp"><span class="ico" data-icon="cards"></span>Pass &amp; Play</button>
+      </div>
+    </div>
+    <div class="hall-foot">
+      <button class="mini" data-act="howto"><span data-icon="scroll"></span>How to Play</button>
+      <button class="mini" data-act="settings"><span data-icon="gear"></span>Settings</button>
+    </div>
+  </section>
+
+  <!-- ============ CARDS (deck + codex) ============ -->
+  <section id="scrCards" class="screen">
+    <div class="scr-head">
+      <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
+      <h2>Cards<span class="sub" id="cardsSub"></span></h2>
+      <div class="deck-count" id="deckCount">0/20</div>
+    </div>
+    <div class="deck-tray" id="deckTray">
+      <div class="tray-head">
+        <b>Your Deck</b><span class="tray-hint" id="trayHint"></span>
+        <button class="mini" id="deckAuto">Auto Fill</button>
+      </div>
+      <div class="tray-strip" id="trayStrip"></div>
+    </div>
+    <div class="chips" id="codexChips"></div>
+    <div class="scroll" id="cardsScroll"><div class="grid" id="cardsGrid"></div></div>
+  </section>
+
+  <!-- ============ FRIENDS ============ -->
+  <section id="scrFriends" class="screen">
+    <div class="scr-head">
+      <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
+      <h2>Friends<span class="sub" id="friendsSub"></span></h2>
+    </div>
+    <div class="scroll">
+      <div class="net-state" id="friendsNet"></div>
+      <div class="panel code-panel">
+        <div class="panel-label">Your code</div>
+        <div class="my-code" id="myCode">ARLO-000-000</div>
+        <div class="panel-note">Give this to a friend so they can add you. It is yours until you change it.</div>
+        <div class="row-btns">
+          <button class="plaque small" id="codeCopy">Copy</button>
+          <button class="plaque small" id="codeNew">New Code</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-label">Add a friend</div>
+        <div class="code-entry">
+          <input id="codeInput" class="code-input" type="text" inputmode="latin" autocomplete="off"
+                 spellcheck="false" maxlength="13" placeholder="ARLO-000-000" aria-label="Friend code">
+          <button class="plaque small primary" id="codeAdd">Add</button>
+        </div>
+        <div class="panel-note" id="addNote">They have to accept before you can play.</div>
+      </div>
+
+      <div id="requestsBlock"></div>
+      <div id="friendsBlock"></div>
+
+      <div class="panel" id="signInPanel">
+        <div class="panel-label">Keep your account</div>
+        <div class="panel-note" id="signInNote"></div>
+        <div class="row-btns"><button class="plaque small" id="signInBtn">Sign in with Google</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HALLS ============ -->
+  <section id="scrHalls" class="screen">
+    <div class="scr-head">
+      <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
+      <h2>Your Hall<span class="sub" id="hallsSub"></span></h2>
+      <div class="coin-row"><span class="coin"></span><b id="hallsGambits">0</b></div>
+    </div>
+    <div class="scroll">
+      <div id="hallGrid"></div>
+    </div>
+  </section>
+
+  <!-- ============ CHAMPION ============ -->
+  <section id="scrAvatar" class="screen armoury">
+    <div id="forgeScene" aria-hidden="true">
+      <svg viewBox="0 0 400 540" preserveAspectRatio="xMidYMax slice">
+        <defs>
+          <radialGradient id="vaultBeam" cx="50%" cy="-6%" r="86%">
+            <stop offset="0" stop-color="#dff3e6" stop-opacity=".17"/>
+            <stop offset="1" stop-color="#dff3e6" stop-opacity="0"/>
+          </radialGradient>
+          <linearGradient id="vaultFloor" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#16231f"/><stop offset="1" stop-color="#060d0b"/>
+          </linearGradient>
+          <linearGradient id="wallFade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#05100d" stop-opacity=".55"/>
+            <stop offset=".35" stop-color="#05100d" stop-opacity="0"/>
+            <stop offset="1" stop-color="#05100d" stop-opacity=".55"/>
+          </linearGradient>
+        </defs>
+
+        <rect width="400" height="540" fill="#0e1816"/>
+
+        <!-- the rock face -->
+        <g><polygon points="-29,-28 21,-19 28,17 -27,12" fill="#112621"/><polygon points="32,-25 113,-24 113,17 28,15" fill="#172c27"/><polygon points="117,-23 190,-22 193,12 119,17" fill="#142924"/><polygon points="197,-24 274,-26 276,15 191,12" fill="#172c27"/><polygon points="280,-23 353,-28 349,10 273,15" fill="#192e29"/><polygon points="350,-21 422,-21 415,9 352,14" fill="#182d28"/><polygon points="-8,10 48,16 53,59 -6,52" fill="#132823"/><polygon points="60,18 144,11 153,53 60,57" fill="#132823"/><polygon points="147,16 196,14 195,56 149,54" fill="#152a25"/><polygon points="204,18 285,17 288,52 198,51" fill="#152a25"/><polygon points="291,20 349,10 343,61 295,53" fill="#152a25"/><polygon points="352,13 434,19 434,55 353,52" fill="#102520"/><polygon points="-14,60 63,60 54,95 -20,96" fill="#162b26"/><polygon points="56,54 141,63 141,98 64,90" fill="#162b26"/><polygon points="142,61 202,55 195,92 145,95" fill="#172c27"/><polygon points="202,63 266,55 267,90 197,91" fill="#142924"/><polygon points="271,63 352,58 349,91 261,96" fill="#112621"/><polygon points="353,57 430,56 426,92 347,92" fill="#0f241f"/><polygon points="-7,101 85,92 87,142 -6,147" fill="#122722"/><polygon points="91,92 144,94 144,142 89,144" fill="#172c27"/><polygon points="142,98 200,100 202,143 143,149" fill="#0f241f"/><polygon points="205,101 256,95 259,148 202,147" fill="#172c27"/><polygon points="253,97 330,96 334,144 256,149" fill="#172c27"/><polygon points="337,91 399,98 399,149 340,143" fill="#172c27"/><polygon points="400,91 459,99 459,149 393,140" fill="#122722"/><polygon points="-25,142 50,144 54,180 -21,182" fill="#0f241f"/><polygon points="53,148 134,151 135,190 49,190" fill="#0e231e"/><polygon points="134,148 204,146 205,188 137,182" fill="#112621"/><polygon points="206,147 256,150 255,186 206,185" fill="#0d221d"/><polygon points="252,144 324,141 328,181 254,188" fill="#122722"/><polygon points="321,141 408,150 408,181 326,185" fill="#112621"/><polygon points="403,151 500,150 501,181 409,187" fill="#142924"/><polygon points="-13,181 56,190 53,221 -18,222" fill="#102520"/><polygon points="59,185 142,190 148,227 56,229" fill="#122722"/><polygon points="151,186 215,184 216,230 148,221" fill="#0f241f"/><polygon points="214,184 301,185 303,230 210,221" fill="#112621"/><polygon points="306,189 360,189 358,220 304,221" fill="#122722"/><polygon points="357,188 406,182 413,225 360,220" fill="#0c211c"/><polygon points="407,190 498,184 498,229 417,225" fill="#142924"/><polygon points="-24,231 67,223 62,270 -27,273" fill="#0e231e"/><polygon points="61,228 133,224 130,271 64,271" fill="#0c211c"/><polygon points="132,228 222,227 230,276 136,272" fill="#152a25"/><polygon points="231,230 322,226 317,269 232,277" fill="#132823"/><polygon points="321,226 400,228 393,272 319,273" fill="#132823"/><polygon points="398,231 452,223 456,274 397,269" fill="#112621"/><polygon points="-28,274 67,270 69,314 -28,317" fill="#142924"/><polygon points="67,274 117,278 115,319 66,321" fill="#0c211c"/><polygon points="122,280 191,274 191,317 127,312" fill="#142924"/><polygon points="195,276 274,277 268,316 201,320" fill="#142924"/><polygon points="269,273 353,278 359,321 268,311" fill="#122722"/><polygon points="354,273 414,275 416,312 352,319" fill="#142924"/><polygon points="416,272 474,272 474,315 423,316" fill="#102520"/><polygon points="-27,316 60,313 60,356 -25,359" fill="#0e231e"/><polygon points="62,323 154,319 149,366 68,365" fill="#102520"/><polygon points="160,317 249,320 248,364 161,364" fill="#112621"/><polygon points="249,314 294,321 292,362 252,365" fill="#0d221d"/><polygon points="305,314 389,323 392,356 296,358" fill="#122722"/><polygon points="395,319 444,322 442,366 385,359" fill="#0b201b"/><polygon points="-13,359 76,367 78,404 -5,396" fill="#0d221d"/><polygon points="84,365 169,364 171,403 83,400" fill="#091e19"/><polygon points="178,362 238,364 235,398 176,397" fill="#102520"/><polygon points="245,364 308,360 299,395 246,400" fill="#122722"/><polygon points="302,362 348,366 355,395 305,398" fill="#091e19"/><polygon points="352,357 428,367 434,397 356,400" fill="#102520"/><polygon points="-35,401 45,402 41,442 -29,447" fill="#112621"/><polygon points="50,406 100,398 102,450 41,443" fill="#0b201b"/><polygon points="108,396 195,397 189,444 107,448" fill="#102520"/><polygon points="194,404 256,401 261,443 190,442" fill="#081d18"/><polygon points="257,398 317,406 316,445 258,448" fill="#0d221d"/><polygon points="314,405 404,401 402,442 310,449" fill="#102520"/><polygon points="402,398 478,400 472,447 403,446" fill="#0a1f1a"/></g>
+        <g><path d="M56 38 L41 52 L38 68 L34 89" stroke="#091310" stroke-width="1.0" fill="none" opacity=".45"/><path d="M317 167 L331 191 L323 219 L338 243" stroke="#091310" stroke-width="1.7" fill="none" opacity=".45"/><path d="M340 298 L325 326 L336 344 L340 366" stroke="#091310" stroke-width="1.6" fill="none" opacity=".45"/><path d="M341 64 L350 79 L345 105 L357 119 L357 147" stroke="#091310" stroke-width="1.0" fill="none" opacity=".45"/><path d="M316 261 L306 274 L294 298 L301 323 L290 337" stroke="#091310" stroke-width="1.1" fill="none" opacity=".45"/><path d="M211 330 L203 350 L188 375 L177 392 L168 420" stroke="#091310" stroke-width="1.3" fill="none" opacity=".45"/><path d="M173 151 L182 172 L194 186 L196 202 L195 230" stroke="#091310" stroke-width="1.7" fill="none" opacity=".45"/></g>
+        <rect width="400" height="440" fill="url(#wallFade)"/>
+
+        <!-- light falling from above onto him -->
+        <ellipse cx="200" cy="-10" rx="196" ry="400" fill="url(#vaultBeam)"/>
+
+        <!-- the floor he is standing on -->
+        <path d="M0 440h400v100H0z" fill="url(#vaultFloor)"/>
+        <path d="M0 440h400" stroke="#040c0a" stroke-width="3"/>
+
+        <g fill="#cfe6d6" opacity=".3" class="motes">
+          <circle cx="128" cy="286" r="1.5"/><circle cx="286" cy="232" r="1.3"/>
+          <circle cx="232" cy="352" r="1.4"/><circle cx="96" cy="196" r="1.1"/>
+          <circle cx="316" cy="312" r="1.4"/><circle cx="176" cy="252" r="1.1"/>
+        </g>
+      </svg>
+    </div>
+    <div class="scr-head" id="avatarTitle">
+      <button class="icon-btn" id="avatarBack" data-back aria-label="Back" data-icon="back"></button>
+      <h2>The Armoury<span class="sub" id="avatarSub"></span></h2>
+      <div class="coin-row"><span class="coin"></span><b id="avatarGambits">0</b></div>
+    </div>
+    <div class="forge-stage">
+      <div class="slot-rail left" id="railSlotsL"></div>
+      <div id="avatarPreview"></div>
+      <div class="slot-rail right" id="railSlotsR"></div>
+    </div>
+    <div class="rack">
+      <div class="rack-head"><b id="rackTitle">Armour</b><span id="rackSub"></span></div>
+      <button class="rack-arrow prev" id="rackPrev" aria-label="Previous">&#8249;</button>
+      <div class="rack-strip" id="avatarOptions"></div>
+      <button class="rack-arrow next" id="rackNext" aria-label="Next">&#8250;</button>
+    </div>
+    <div class="deck-actions"><button class="plaque primary" id="avatarDone">Done</button></div>
+  </section>
+
+  <!-- ============ SHOP ============ -->
+  <section id="scrShop" class="screen">
+    <div class="scr-head">
+      <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
+      <h2>Shop<span class="sub">Looks only. Nothing here changes the game.</span></h2>
+      <div class="coin-row"><span class="coin"></span><b id="shopGambits">0</b></div>
+    </div>
+    <div class="chips" id="shopTabs"></div>
+    <div class="scroll"><div class="shop-grid" id="shopGrid"></div></div>
+  </section>
+
+  <!-- ============ CHALLENGES ============ -->
+  <section id="scrChallenges" class="screen">
+    <div class="scr-head">
+      <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
+      <h2>Challenges<span class="sub">Complete challenges to unlock Relic cards</span></h2>
+    </div>
+    <div class="scroll" id="challengesBody"></div>
+  </section>
+
+  <!-- ============ SETTINGS & STATS ============ -->
+  <section id="scrSettings" class="screen">
+    <div class="scr-head">
+      <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
+      <h2>Settings &amp; Stats</h2>
+    </div>
+    <div class="scroll" id="settingsBody"></div>
+  </section>
+</main>
+
+<div id="inspector" class="overlay">
+  <div class="backdrop" data-close></div>
+  <div class="insp-stage" data-close><div class="insp-glow"></div><div class="insp-aura"></div><div id="inspCard"></div></div>
+  <div class="insp-info" id="inspInfo">
+    <div class="insp-meta" id="inspMeta"></div>
+    <div class="insp-reason" id="inspReason"></div>
+    <div class="insp-actions"><button class="plaque" id="inspBack">Back</button><button class="plaque primary" id="inspPlay">Activate</button></div>
+  </div>
+</div>
+
+<div id="modal" class="overlay">
+  <div class="backdrop" id="modalBackdrop"></div>
+  <div class="modal-box" id="modalBox"></div>
+</div>
+
+<div id="curtain" class="overlay">
+  <div class="backdrop"></div>
+  <div class="curtain-inner">
+    <div class="crest" id="curtainCrest"></div>
+    <h3 id="curtainTitle">Pass the device</h3>
+    <p id="curtainText">Hand the phone to the next player. No peeking at their cards!</p>
+    <button class="plaque primary" id="curtainGo">I'm Ready</button>
+  </div>
+</div>
+
+<div id="reward" class="overlay">
+  <div class="backdrop"></div>
+  <div class="reward-inner">
+    <div class="end-rays"></div>
+    <div class="reward-kicker">Challenge Complete</div>
+    <div class="reward-title" id="rewardTitle"></div>
+    <div class="reward-desc" id="rewardDesc"></div>
+    <div class="reward-card" id="rewardCard"></div>
+    <div class="reward-note" id="rewardNote"></div>
+    <button class="plaque primary" id="rewardGo">Awesome!</button>
+  </div>
+</div>
+
+<div id="intro" aria-hidden="true">
+  <canvas id="introCanvas"></canvas>
+  <div class="intro-scan"></div>
+</div>
+
+<div id="fxTop"></div>
+<div id="toasts"></div>
+
+<script src="js/engine.js?v=20261009202502"></script>
+<script src="js/ai.js?v=20261009202502"></script>
+<script src="js/cards.js?v=20261009202502"></script>
+<script src="js/art.js?v=20261009202502"></script>
+<script src="js/audio.js?v=20261009202502"></script>
+<script src="js/store.js?v=20261009202502"></script>
+<script src="js/progress.js?v=20261009202502"></script>
+<script src="js/firebase-config.js?v=20261009202502"></script>
+<script src="js/account.js?v=20261009202502"></script>
+<script src="js/avatar.js?v=20261009202502"></script>
+<script src="js/halls.js?v=20261009202502"></script>
+<script src="js/shop.js?v=20261009202502"></script>
+<script src="js/game.js?v=20261009202502"></script>
+<script src="js/net.js?v=20261009202502"></script>
+<script src="js/firebase-backend.js?v=20261009202502"></script>
+<script src="js/ui.js?v=20261009202502"></script>
+</body>
+</html>
