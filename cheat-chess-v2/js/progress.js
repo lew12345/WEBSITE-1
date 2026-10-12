@@ -67,6 +67,10 @@ const Progress = (() => {
     glory:{ run:0, immortal:false, best:0, held:0 },
     /* wins, losses and draws against each friend, by their id */
     vs:{},
+    /* names you gave your friends. Device only: never sent, never backed up. */
+    nicknames:{},
+    /* matches you are in the middle of, by match id */
+    games:{},
     c:{ wins:0, aiWins:{ easy:0, medium:0, hard:0 }, streak:0, bestStreak:0, quickWins:0, cleanWins:0,
         kgSaves:0, bestBomb:0, cardsCast:0, castIds:{}, pvp:0, dailyStreak:0 },
   };
@@ -103,6 +107,8 @@ function migrateProfile() {
   }
   if (!d.glory) d.glory = { run:0, immortal:false, best:0, held:0 };
   if (!d.vs || typeof d.vs !== 'object') d.vs = {};
+  if (!d.nicknames || typeof d.nicknames !== 'object') d.nicknames = {};
+  if (!d.games || typeof d.games !== 'object') d.games = {};
   /* halls arrived after the first testers, so older saves have none */
   if (!Array.isArray(o.halls)) o.halls = ['stone'];
   if (!Array.isArray(o.carpets)) o.carpets = ['none'];
@@ -175,6 +181,30 @@ function recordVs(friendId, result) {
 }
 function vsRecord(friendId){ return (P.vs && P.vs[friendId]) || null; }
 function vsText(r){ return r ? `${r.w}W ${r.l}L ${r.d}D` : ''; }
+
+/* ------------------------------------------------------- games in progress
+   A friend match lives on the server; this is only the note of where to find
+   it again. Stale ones are dropped after a fortnight. */
+const GAME_KEEP_MS = 14 * 24 * 60 * 60 * 1000;
+function activeGames() {
+  const all = P.games || (P.games = {});
+  let changed = false;
+  for (const id in all) if (Date.now() - (all[id].at || 0) > GAME_KEEP_MS) { delete all[id]; changed = true; }
+  if (changed) Progress.save();
+  return Object.values(all).sort((a, b) => b.at - a.at);
+}
+function gameWith(friendId){ return activeGames().find(g => g.friendId === friendId) || null; }
+function rememberGame(info) {
+  if (!info || !info.id) return;
+  const all = P.games || (P.games = {});
+  all[info.id] = { ...(all[info.id] || {}), ...info, at:Date.now() };
+  Progress.save();
+}
+function forgetGame(id) {
+  if (!id || !P.games || !P.games[id]) return;
+  delete P.games[id];
+  Progress.save();
+}
 
 /* Award Gambits. Returns how many milestone card draws it unlocked. */
 function awardXp(amount) {

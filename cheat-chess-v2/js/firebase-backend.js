@@ -250,6 +250,19 @@ function FirebaseBackend() {
       if (!seat) return null;
       return { id, seat, seed:m.seed, decks:m.decks, seats:m.seats };
     },
+    /* The whole match in one read: enough to rebuild the board from the seed
+       and see whose move it is. */
+    async matchState(id) {
+      const snap = await db.ref(DB.match(id)).get();
+      if (!snap.exists()) return null;
+      const m = snap.val();
+      const seat = m.seats && m.seats.w === uid ? 'w' : m.seats && m.seats.b === uid ? 'b' : null;
+      if (!seat) return null;
+      const actions = [];
+      for (const k in (m.actions || {})) actions.push({ ...m.actions[k], seq:Number(k) });
+      actions.sort((a, b) => a.seq - b.seq);
+      return { id, seat, seed:m.seed, decks:m.decks || {}, status:m.status, actions };
+    },
     watchInvites(fn) {
       const ref = db.ref(DB.invites(uid));
       const cb = ref.on('value', s => {
@@ -292,6 +305,19 @@ function FirebaseTransport(db, matchId, seat, uid) {
       if (action.kind === 'card') { payload.id = action.id; payload.picks = action.picks || []; }
       if (action.kind === 'quit') payload.reason = action.reason || 'resign';
       actions.child(String(slot)).set(payload).catch(e => console.warn('[net] could not post', e));
+    },
+    /* Everything that has happened in this match, in order, both sides. A
+       device that was closed rebuilds the board from this and carries on. */
+    async history() {
+      const snap = await actions.get();
+      const out = [];
+      snap.forEach(c => out.push({ ...c.val(), seq:Number(c.key) }));
+      out.sort((a, b) => a.seq - b.seq);
+      if (out.length) {
+        applied = out[out.length - 1].seq;
+        next = applied + 1;
+      }
+      return out;
     },
     onAction(fn) {
       listener = fn;

@@ -3,7 +3,10 @@
    ========================================================================= */
 const Store = (() => {
   const KEY_SET = 'cheatchess.settings.v1', KEY_STATS = 'cheatchess.stats.v1';
-  const DEFAULT_SETTINGS = { sfx:true, music:true, haptics:true, hints:true, boardTheme:'jade', fastAi:false, flipBoard:true, seenRules:false };
+  const DEFAULT_SETTINGS = { sfx:true, music:true, haptics:true, hints:true, boardTheme:'jade', fastAi:false, flipBoard:true, seenRules:false,
+    /* set the first time Friends is opened: after that the hall connects on
+       its own, so challenges can reach you without you going looking */
+    friendsOn:false };
   const DEFAULT_STATS = {
     games:0, pvp:0, cardsPlayed:0, streak:0, bestStreak:0, fastestWin:null,
     ai: { easy:{w:0,l:0,d:0}, medium:{w:0,l:0,d:0}, hard:{w:0,l:0,d:0} },

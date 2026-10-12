@@ -265,7 +265,11 @@ const Account = (() => {
        connection. A snapshot goes up when signed in. */
     snapshot() {
       const d = Progress.data;
-      return { v:1, at:Date.now(), lifetime:d.xp.lifetime, data:JSON.parse(JSON.stringify(d)) };
+      const copy = JSON.parse(JSON.stringify(d));
+      /* Nicknames are the one thing in here that somebody typed, so they are
+         the one thing that never goes up. */
+      delete copy.nicknames;
+      return { v:1, at:Date.now(), lifetime:d.xp.lifetime, data:copy };
     },
     /* Two saves cannot be merged safely, so the fuller one wins. Lifetime
        Gambits only ever rise, which makes them an honest measure of fuller. */

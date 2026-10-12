@@ -484,3 +484,55 @@
    allowed to wrap rather than being cut off mid word. */
 .friend-row.rich .friend-name small{ white-space:normal; }
 .friend-name .imm-tag{ font-style:normal; margin-left:4px; }
+
+/* ----------------------------------------------- the rack on a short screen
+   A phone with its browser bar showing leaves the rack about 180px, and a card
+   is a flex column, so the portrait was the part that collapsed: the boots were
+   all that was left. Nothing in a card may shrink, and when the screen really
+   is short the whole card is drawn smaller rather than squeezed. */
+.rack{ height:33dvh; }
+.rack-strip .shop-item > *{ flex:0 0 auto; }
+.rack-strip .av-preview, .rack-strip .set-preview{ flex:0 0 auto; min-height:0; }
+@media (max-height:780px){
+  .rack-strip .shop-item{ width:138px; padding:8px 8px 10px; }
+  .rack-strip .av-preview, .rack-strip .av-preview .av-img{ height:76px; }
+  .rack-strip .av-preview .av-img img{ height:76px; }
+  .rack-strip .set-preview{ height:60px; }
+  .rack-strip .shop-item .shop-name{ font-size:.78rem; margin-top:4px; }
+  .rack-strip .shop-item .shop-desc{ font-size:.64rem; line-height:1.25; margin:3px 0 7px; min-height:0; }
+  .rack-strip .shop-item .plaque.small{ padding:7px 10px; font-size:.74rem; }
+}
+@media (max-height:660px){
+  .rack-strip .av-preview, .rack-strip .av-preview .av-img{ height:62px; }
+  .rack-strip .av-preview .av-img img{ height:62px; }
+  .rack-strip .shop-item .shop-desc{ display:none; }
+}
+
+.nick-input{ width:100%; max-width:260px; margin:10px auto 4px; text-align:center;
+  font-family:var(--f-head); letter-spacing:.04em; }
+.visit-realname{ text-align:center; margin:-6px 0 8px; font-size:.72rem; font-weight:700;
+  color:var(--ink-mute); }
+
+/* --------------------------------------------- a game you are in the middle of */
+.hall-games{ display:flex; flex-direction:column; gap:6px; padding:0 2px 8px; }
+.hall-game{ display:flex; align-items:center; gap:9px; width:100%; padding:9px 12px; border-radius:12px;
+  text-align:left; background:linear-gradient(180deg, rgba(36,86,78,.95), rgba(10,40,36,.95));
+  box-shadow:0 0 0 1.5px rgba(95,232,180,.45), 0 4px 12px rgba(0,0,0,.4); }
+.hall-game:active{ transform:scale(.99); }
+.hall-game-dot{ width:9px; height:9px; border-radius:50%; background:#5fe8b4; flex:0 0 auto;
+  box-shadow:0 0 10px rgba(95,232,180,.9); animation:hallGamePulse 1.8s ease-in-out infinite; }
+@keyframes hallGamePulse{ 0%,100%{ opacity:.45; } 50%{ opacity:1; } }
+.hall-game-text{ flex:1; min-width:0; font-size:.82rem; font-weight:700; color:var(--ink);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hall-game-text b{ font-family:var(--f-head); color:#bfffe4; }
+.hall-game-go{ flex:0 0 auto; font-family:var(--f-head); font-weight:900; font-size:.72rem;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--gold-hi); }
+
+/* whose move it is, at a glance */
+.hall-game.yours{ background:linear-gradient(180deg, rgba(44,104,94,.95), rgba(12,48,42,.95));
+  box-shadow:0 0 0 1.5px rgba(95,232,180,.7), 0 4px 14px rgba(0,0,0,.45); }
+.hall-game.theirs .hall-game-dot{ background:var(--gold); box-shadow:none; animation:none; opacity:.7; }
+.hall-game.theirs .hall-game-go{ color:var(--ink-mute); }
+.hall-game.done .hall-game-dot{ background:#8a9a95; box-shadow:none; animation:none; }
+.friend-name .rec.yours{ color:#9fffd8; }
+.friend-name .rec.theirs{ color:var(--ink-mute); }

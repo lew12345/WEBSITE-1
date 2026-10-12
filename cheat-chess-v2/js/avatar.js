@@ -239,7 +239,17 @@ const AVATAR_ART = {
   bodyGear:['ranger', 'mage', 'royal', 'steel', 'emerald', 'darkiron'],
   fullGear:['halfhelm', 'wanderer', 'nightfall', 'void', 'emberlight', 'silver', 'gilded', 'runestone', 'amberhorn'],
 };
-function hasAvatarArt(){ return AVATAR_ART.skins > 0; }
+/* The drawn champion is the fallback for the painted one. It needs no network,
+   so it is what is left when the art does not arrive. */
+let AVATAR_ART_OK = true;
+function hasAvatarArt(){ return AVATAR_ART.skins > 0 && AVATAR_ART_OK; }
+function avatarLayerFailed(img) {
+  img.style.visibility = 'hidden';
+  if (!img.dataset.base || !AVATAR_ART_OK) return;
+  AVATAR_ART_OK = false;
+  console.warn('[art] the champion art did not load; drawing them instead');
+  if (typeof redrawAvatars === 'function') redrawAvatars();
+}
 function gearCoversHead(id){ return AVATAR_ART.fullGear.includes(id); }
 
 /* The stack of images that make up a champion, bottom layer first. */
@@ -259,7 +269,8 @@ function avatarLayers(av) {
 function avatarNode(av, opts = {}) {
   if (!hasAvatarArt()) return avatarSVG(av, opts);
   const a = { ...DEFAULT_AVATAR, ...(av || {}) };
-  const layers = avatarLayers(a).map(src => `<img src="${src}" alt="" draggable="false">`).join('');
+  const layers = avatarLayers(a).map((src, i) =>
+    `<img src="${src}" alt="" draggable="false"${i === 0 ? ' data-base="1"' : ''} onerror="avatarLayerFailed(this)">`).join('');
   const pet = opts.noPet ? '' : petNode(a.pet);
   return `<div class="av-img${opts.head ? ' head' : ''}${opts.cls ? ' ' + opts.cls : ''}">${layers}${pet}</div>`;
 }

@@ -278,9 +278,10 @@ function renderStatus(thinking) {
   const chk = inCheck(G.state, G.state.turn);
   let txt;
   if (G.mode === 'online') {
-    txt = G.state.turn === mySeat() ? 'Your turn'
-      : Net.present ? (playerName(opp(mySeat())) + ' is thinking')
-      : ('Waiting for ' + playerName(opp(mySeat())));
+    const them = playerName(opp(mySeat()));
+    txt = !Net.present ? (them + ' is away')
+      : G.state.turn === mySeat() ? 'Your turn'
+      : (them + ' is thinking');
   }
   else if (G.mode === 'ai') txt = G.state.turn === G.humanColor ? 'Your turn' : AI_NAMES[G.level].short + ' is thinking';
   else txt = COLOR_NAME[G.state.turn] + "'s turn";
@@ -742,12 +743,21 @@ async function startMatch(mode, level, opts) {
     G.seat = opts.seat === 'b' ? 'b' : 'w';
     G.opponentName = opts.opponentName || null;
     G.opponentId = opts.opponentId || null;
-    Net.attach(opts.transport, G.seat, applyRemoteAction);
+    G.matchId = opts.matchId || null;
+    if (G.matchId) rememberGame({ id:G.matchId, seat:G.seat, seed:opts.seed,
+      friendId:G.opponentId, name:G.opponentName });
+    /* Rejoining, the listener must not run until the board has been caught up:
+       it fires for every action already in the match the moment it is attached,
+       and applying those before the replay would play them twice. */
+    if (!opts.resume) Net.attach(opts.transport, G.seat, applyRemoteAction);
     Net.onPresence(() => { if (G && G.mode === 'online' && !G.over) renderStatus(); });
   } else Net.detach();
   UI.lastMatch = { mode, level };
   UI.busy = true; UI.sel = null; UI.legal = []; UI.pending = null; UI.override = null; UI.log = []; UI.playCache = {};
-  UI.viewColor = 'w'; UI.flip = false;
+  UI.viewColor = 'w';
+  /* Whoever is sitting here plays up the board. Pass and play turns it over at
+     the curtain; online it is set once, because the seat never changes. */
+  UI.flip = mode === 'online' && G.seat === 'b';
   $('#ticker').textContent = '';
   $('#targetBar').classList.remove('show');
   UI.screenStack = ['scrTitle', 'scrGame'];
@@ -763,10 +773,78 @@ async function startMatch(mode, level, opts) {
   addLog(mode === 'ai' ? `You play Ivory against ${AI_NAMES[level].name}.`
     : mode === 'online' ? `${COLOR_NAME[G.seat]} is yours. ${COLOR_NAME['w']} moves first.`
     : 'Pass & Play: Ivory moves first.');
+  /* Rejoining: the server kept every action, so the game is simply played
+     again from the seed, quietly, and we arrive on the move it is really on. */
+  if (mode === 'online' && opts.resume && opts.transport) {
+    const caught = opts.transport.history ? await catchUpMatch(opts.transport) : {};
+    if (!alive(ep)) return;
+    if (caught.over) return;
+    Net.attach(opts.transport, G.seat, applyRemoteAction);
+  }
   UI.busy = false;
   renderAll();
   if (mode === 'ai' && !Store.stats.games) toast('Tap one of your cards to see what it does!', 3200);
   if (mode === 'online') renderStatus();
+}
+
+/* Play the match through from the beginning, without animation, to wherever it
+   has got to. Both sides' actions are applied: mine were never applied on this
+   device, because this device was not here. */
+async function catchUpMatch(transport) {
+  let list = [];
+  try { list = await transport.history(); } catch (e) { console.warn('[net] could not catch up', e); return {}; }
+  if (!list.length) return {};
+  const res = replayActions(G, list, Account.id, mySeat());
+  if (res.broke) console.warn('[net] catch up stopped early:', res.broke, res.at);
+  if (res.over) {
+    renderAll();
+    finishGame(res.end || { over:true, winner:opp(res.quitBy), loser:res.quitBy, reason:'resign' });
+    return { over:true };
+  }
+  addLog(`Back in your game with ${escapeText(G.opponentName || 'your friend')}.`);
+  renderAll();
+  return {};
+}
+
+/* Play a match's recorded actions into a game, with no animation, no sound and
+   no screen: the rules and nothing else. Both rejoining a game and asking the
+   hall whose move it is go through here, so there is only ever one answer. */
+function replayActions(g, actions, myUid, seat) {
+  for (const a of actions) {
+    const col = a.by === myUid ? seat : opp(seat);
+    if (a.kind === 'quit') return { over:true, quitBy:col };
+    if (g.state.turn !== col) return { broke:'out of turn', at:a };
+    if (a.kind === 'move') {
+      const legal = realLegalMoves(g, col).find(m =>
+        m.from.r === a.mv.from.r && m.from.c === a.mv.from.c &&
+        m.to.r === a.mv.to.r && m.to.c === a.mv.to.c);
+      if (!legal) return { broke:'a move that does not fit', at:a };
+      if (legal.promotion) legal.promoChoice = a.mv.promoChoice || 'q';
+      makeMove(g, legal);
+    } else if (a.kind === 'card') {
+      if (!g.hands[col].includes(a.id)) return { broke:'a card that is not in hand', at:a };
+      playCard(g, a.id, a.picks || [], col);
+    }
+    const end = settleTurnQuietly(g);
+    if (end && end.over) return { over:true, end };
+  }
+  return {};
+}
+
+/* What afterTurn does to the board, with none of what it does to the screen:
+   the King's Guard firing and a skipped turn both change the position, so a
+   silent replay has to do them too or the two devices end up in different
+   games. */
+function settleTurnQuietly(g) {
+  for (let guard = 0; guard < 128; guard++) {
+    const end = evaluateEnd(g);
+    if (!end) return null;
+    if (end.over) return end;
+    if (end.kingGuard) { triggerKingGuard(g, g.state.turn); continue; }
+    if (end.skip) { g.state.turn = opp(g.state.turn); g.ply++; purgeEffects(g); continue; }
+    return end;
+  }
+  return null;
 }
 
 /* Their action, arriving from the transport. It runs down the same path as one
@@ -1216,6 +1294,19 @@ async function playEvents(events) {
 }
 
 /* ------------------------------------------------------------ computer */
+/* Called once if the champion art fails: whatever is on screen is drawn again,
+   this time from code. */
+function redrawAvatars() {
+  try {
+    const id = (document.querySelector('.screen.active') || {}).id;
+    if (id === 'scrLobby') renderLobby();
+    else if (id === 'scrAvatar') renderAvatarScreen(!Progress.data.avatar);
+    else if (id === 'scrGame') renderPlayers();
+    else if (id === 'scrFriends') renderFriends();
+    else if (id === 'scrHalls') renderHalls();
+  } catch (e) {}
+}
+
 let aiWorker = null, aiReqId = 0;
 const aiPending = new Map();
 function initWorker() {
@@ -1235,7 +1326,18 @@ function requestAiMove(payload) {
     const id = ++aiReqId;
     aiPending.set(id, mv => mv === undefined ? local() : resolve(mv));
     aiWorker.postMessage({ id, payload });
-    setTimeout(() => { if (aiPending.has(id)) { aiPending.delete(id); resolve(aiChooseMove({ ...payload, level:'easy' })); } }, 9000);
+    /* If the worker is late, think here instead - at the strength the game is
+       set to. Dropping to easy is how a Grandmaster game turned into a bad one
+       on a slow phone. The worker is restarted, since it let us down once. */
+    setTimeout(() => {
+      if (!aiPending.has(id)) return;
+      aiPending.delete(id);
+      console.warn('[ai] the worker was too slow; thinking on the main thread');
+      try { if (aiWorker) aiWorker.terminate(); } catch (e) {}
+      aiWorker = null;
+      initWorker();
+      resolve(aiChooseMove(payload));
+    }, 6000);
   });
 }
 async function aiTurn(ep) {
@@ -1327,6 +1429,7 @@ function finishGame(end) {
       : XP.pvpFinish;
     gainGambits(earned);
   }
+  if (G.matchId) forgetGame(G.matchId);
   Store.saveStats();
   Progress.save();
   /* a finished game moves the number and may move the title, so friends should
@@ -1421,13 +1524,33 @@ function openGameMenu() {
     { label:'Cards', fn:() => { closeModal(); UI.deckDraft = null; showScreen('scrCards'); } },
     { label:'Challenges', fn:() => { closeModal(); showScreen('scrChallenges'); } },
     { label:'Settings', fn:() => { closeModal(); showScreen('scrSettings'); } },
-    /* Resigning is the only way out of a live game, so walking away cannot be
-       used to dodge the cost of losing. Once it is over, leaving is free. */
+    /* Against the computer, resigning is the only way out, so walking away
+       cannot dodge the cost of losing. A friend match is different: it lives on
+       the server, so you can put it down and pick it up later - which is the
+       whole point of playing someone in another house. */
     ...(G.over
       ? [{ label:'Back to Hall', fn:() => { closeModal(); UI.epoch++; UI.screenStack = ['scrTitle']; enterLobby(); } }]
-      : [{ label:'Resign', danger:true, fn:() => confirmResign() }]),
+      : G.mode === 'online'
+        ? [{ label:'Leave for now', fn:() => { closeModal(); parkMatch(); } },
+           { label:'Resign', danger:true, fn:() => confirmResign() }]
+        : [{ label:'Resign', danger:true, fn:() => confirmResign() }]),
   ]);
 }
+/* Put the game down without ending it. It stays on the server, the hall says
+   you are in it, and the friend's row says Continue. */
+function parkMatch() {
+  if (!G || G.over) return;
+  const who = G.opponentName || 'your friend';
+  if (G.matchId) rememberGame({ id:G.matchId, seat:G.seat, seed:G.seed,
+    friendId:G.opponentId, name:G.opponentName });
+  Net.detach();
+  UI.epoch++;
+  G = null;
+  UI.screenStack = ['scrTitle'];
+  enterLobby();
+  toast(`Your game with ${escapeText(who)} is waiting for you.`, 3200);
+}
+
 function confirmResign() {
   showModal(`<h3>Resign?</h3><div class="modal-body" style="text-align:center"><p>${G.mode === 'ai' ? 'This counts as a loss.' : COLOR_NAME[G.state.turn] + ' will resign the game.'}</p></div>`,
     [{ label:'Resign', danger:true, fn:() => { closeModal();
@@ -2003,9 +2126,41 @@ function hallItemCard(hall) {
   return card;
 }
 
+/* ------------------------------------------------------------ nicknames --
+   The game's own names are generated, which keeps typed words out of the
+   network entirely. A nickname is the exception that proves it: it is typed,
+   so it never leaves this device - not in the calling card, not in the cloud
+   save, not in a match. Only you ever see it. */
+function nickOf(id){ return (Progress.data.nicknames || {})[id] || null; }
+function friendLabel(f){ return nickOf(f.id) || f.name; }
+function setNick(id, text) {
+  const nicks = Progress.data.nicknames || (Progress.data.nicknames = {});
+  const clean = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 18);
+  if (clean) nicks[id] = clean; else delete nicks[id];
+  Progress.save();
+}
+function renameFriend(f) {
+  const now = nickOf(f.id) || '';
+  showModal(`<h3>Name this friend</h3><div class="modal-body" style="text-align:center">
+    <p>So you know who they are. This stays on your phone: it is never sent to them,
+    to us, or anywhere else.</p>
+    <input id="nickInput" class="code-input nick-input" type="text" maxlength="18"
+      autocomplete="off" spellcheck="false" value="${escapeText(now)}"
+      placeholder="${escapeText(f.name)}" aria-label="Nickname">
+    <p style="font-size:.76rem;color:var(--ink-mute)">Their name in the game is
+    <b style="display:inline">${escapeText(f.name)}</b>. Leave this empty to use it.</p></div>`,
+    [{ label:'Save', primary:true, fn:() => {
+        setNick(f.id, ($('#nickInput') || {}).value || '');
+        closeModal(); Sound.play('reveal'); renderFriends();
+      } },
+     { label:'Cancel', fn:closeModal }], { row:true });
+  setTimeout(() => { const el = $('#nickInput'); if (el) { el.focus(); el.select(); } }, 120);
+}
+
 /* ============================================================== friends */
 function renderFriends() {
   ensureFriendsOnline();
+  if (!Store.settings.friendsOn) { Store.settings.friendsOn = true; Store.saveSettings(); }
   showNetState();
   const friends = Account.friends(), requests = Account.incoming(), pending = Account.outgoing();
   const waiting = requests.length ? `${requests.length} waiting to play you` : '';
@@ -2013,6 +2168,32 @@ function renderFriends() {
     ? `${friends.length} on your list` + (waiting ? `, ${waiting}` : '')
     : (waiting || 'Add a friend with their code');
   $('#myCode').textContent = Account.prettyCode;
+
+  /* games somebody has set up and is waiting for you to join */
+  const ib = $('#invitesBlock');
+  if (ib) {
+    ib.replaceChildren();
+    const invites = (UI.invites || []).filter(i => !gameWith(i.from));
+    if (invites.length) {
+      const box = h(`<div class="panel"><div class="panel-label">Waiting to play</div></div>`);
+      for (const inv of invites) {
+        const who = (inv.from && nickOf(inv.from)) || inv.name || 'A friend';
+        const row = h(`<div class="friend-row"><span class="friend-name"><span>${escapeText(who)}</span>
+          <small>has a game set up for you</small></span>
+          <button class="plaque small primary" data-join="1">Play</button>
+          <button class="mini-x" data-no="1" aria-label="Decline">&times;</button></div>`);
+        row.querySelector('[data-join]').addEventListener('click', () => acceptInvite(inv));
+        row.querySelector('[data-no]').addEventListener('click', async () => {
+          Sound.play('tap');
+          UI.invites = (UI.invites || []).filter(i => i.matchId !== inv.matchId);
+          try { await Net.server.clearInvite(inv.matchId); } catch (e) {}
+          renderFriends();
+        });
+        box.append(row);
+      }
+      ib.append(box);
+    }
+  }
 
   /* requests waiting on you */
   const rb = $('#requestsBlock');
@@ -2053,16 +2234,27 @@ function renderFriends() {
     const sub = card
       ? `${rankName(card.lv || 1)}${card.imm ? ` <i class="imm-tag">${GLORY.title}</i>` : ''}`
       : (card === null ? 'Hall not shown yet' : 'Looking up their hall...');
-    const line2 = rec
+    const going = gameWith(f.id);
+    const peek = going ? _matchPeek.get(going.id) : null;
+    const turnLine = going && peek && !peek.over && !peek.gone
+      ? `<small class="rec ${peek.mine ? 'yours' : 'theirs'}">${peek.mine ? 'Your move' : 'Their move'}</small>`
+      : going ? `<small class="rec">Game in progress</small>` : '';
+    const line2 = turnLine || (rec
       ? `<small class="rec">${vsText(rec)}</small>`
-      : (card && card.xp ? `<small class="rec">${card.xp.toLocaleString()} earned</small>` : '');
+      : (card && card.xp ? `<small class="rec">${card.xp.toLocaleString()} earned</small>` : ''));
+    if (going && !peek) peekMatch(going).then(r => { if (r && $('#scrFriends').classList.contains('active')) renderFriends(); });
     const row = h(`<div class="friend-row rich">
       <button class="friend-peek" aria-label="Visit ${escapeText(f.name)}">
         ${hallSceneHTML(card ? card.hall : 'stone', card || null, { pet:false, kit:card || {} })}</button>
-      <span class="friend-name"><span>${escapeText(f.name)}</span><small>${sub}</small>${line2}</span>
-      <button class="plaque small primary" data-play="1">Play</button>
+      <span class="friend-name"><span>${escapeText(friendLabel(f))}</span><small>${sub}</small>${line2}</span>
+      <button class="plaque small primary" data-play="1">${gameWith(f.id) ? 'Continue' : 'Play'}</button>
       <button class="mini-x" data-drop="1" aria-label="Remove">&times;</button></div>`);
-    row.querySelector('.friend-peek').addEventListener('click', () => { Sound.play('tap'); visitFriend(f); });
+    /* The picture is the obvious target, but the name reads like a link too,
+       so anything that is not one of the buttons opens their hall. */
+    row.addEventListener('click', e => {
+      if (e.target.closest('.plaque, .mini-x')) return;
+      Sound.play('tap'); visitFriend(f);
+    });
     row.querySelector('[data-play]').addEventListener('click', () => challengeFriend(f));
     row.querySelector('[data-drop]').addEventListener('click', () => {
       showModal(`<h3>Remove ${escapeText(f.name)}?</h3><div class="modal-body" style="text-align:center">
@@ -2156,19 +2348,27 @@ function visitFriend(f) {
        <div class="visit-set">${['k', 'q', 'n'].map(t => `<div class="pv-piece">${pieceArt('w' + t, card.pieces || 'classic')}</div>`).join('')}</div>`
     : `<div class="empty-note" style="text-align:center">They are on an older version of the game, so their
        hall has not been sent over yet. It will appear once they update.</div>`;
-  showModal(`<h3>${escapeText(f.name)}</h3><div class="modal-body visit">${body}</div>`,
+  const named = nickOf(f.id);
+  showModal(`<h3>${escapeText(friendLabel(f))}</h3>
+    ${named ? `<div class="visit-realname">${escapeText(f.name)} in the game</div>` : ''}
+    <div class="modal-body visit">${body}</div>`,
     [{ label:'Challenge', primary:true, fn:() => { closeModal(); challengeFriend(f); } },
-     { label:'Close', fn:closeModal }], { row:true });
+     { label:named ? 'Rename' : 'Name them', fn:() => { closeModal(); renameFriend(f); } },
+     { label:'Close', fn:closeModal }]);
 }
 
 async function challengeFriend(f) {
   Sound.play('tap');
+  /* One game at a time with one person: if you already have one going, this is
+     the way back into it rather than the start of another. */
+  const going = gameWith(f.id);
+  if (going) return resumeGame(going);
   if (Net.canReachFriends) {
     try {
       const m = await Net.server.createMatch(f, playerDeck());
-      toast(`Challenge sent to ${f.name}.`, 2800);
+      toast(`Challenge sent to ${friendLabel(f)}.`, 2800);
       startMatch('online', 'medium', {
-        seat:m.seat, seed:m.seed, opponentName:f.name, opponentId:f.id,
+        matchId:m.id, seat:m.seat, seed:m.seed, opponentName:friendLabel(f), opponentId:f.id,
         transport: Net.server.transport(m.id, m.seat),
       });
     } catch (e) {
@@ -2189,27 +2389,61 @@ async function challengeFriend(f) {
   Net.challenge(f);
 }
 
+/* Back into a game you are already in. */
+async function resumeGame(g) {
+  if (!Net.canReachFriends) { Sound.play('error'); toast('You need a connection to pick that game up.'); return; }
+  const m = await Net.server.openMatch(g.id).catch(() => null);
+  if (!m) {
+    forgetGame(g.id);
+    Sound.play('error');
+    toast('That game is no longer there.', 3000);
+    renderLobby();
+    return;
+  }
+  startMatch('online', 'medium', {
+    matchId:g.id, seat:m.seat, seed:m.seed, resume:true,
+    opponentName:(g.friendId && nickOf(g.friendId)) || g.name, opponentId:g.friendId,
+    theirDeck:(m.decks && m.decks[m.seat === 'w' ? 'b' : 'w']) || null,
+    transport: Net.server.transport(g.id, m.seat),
+  });
+}
+
 /* Someone challenged you: offer it once, then clear it either way. */
 function watchForInvites() {
   if (!Net.canReachFriends) return;
   Net.server.watchInvites(list => {
-    if (!list.length || G || modalOpen()) return;
-    const inv = list[0];
-    showModal(`<h3>${escapeText(inv.name || 'A friend')} wants to play</h3>
+    /* Held, not thrown away: an invitation you were not looking at is still
+       waiting on the Friends screen, and the hall shows a badge for it. */
+    UI.invites = list || [];
+    const lobby = $('#scrLobby').classList.contains('active');
+    if (lobby) renderLobby();
+    if ($('#scrFriends').classList.contains('active')) renderFriends();
+    if (!UI.invites.length || G || modalOpen() || !lobby) return;
+    const inv = UI.invites[0];
+    if (UI.invitePrompted === inv.matchId) return;
+    UI.invitePrompted = inv.matchId;
+    const who = (inv.from && nickOf(inv.from)) || inv.name || 'A friend';
+    showModal(`<h3>${escapeText(who)} wants to play</h3>
       <div class="modal-body" style="text-align:center"><p>They have set up a game and are waiting for you.</p></div>`, [
-      { label:'Play', primary:true, fn:async () => {
-          closeModal();
-          await Net.server.clearInvite(inv.matchId);
-          const m = await Net.server.openMatch(inv.matchId);
-          if (!m) { toast('That game has gone.'); return; }
-          startMatch('online', 'medium', {
-            seat:m.seat, seed:m.seed, opponentName:inv.name, opponentId:inv.from || null,
-            theirDeck:(m.decks && m.decks[m.seat === 'w' ? 'b' : 'w']) || null,
-            transport: Net.server.transport(m.id, m.seat),
-          });
-        } },
-      { label:'Not now', fn:async () => { closeModal(); await Net.server.clearInvite(inv.matchId); } },
+      { label:'Play', primary:true, fn:() => { closeModal(); acceptInvite(inv); } },
+      { label:'Later', fn:closeModal },
     ], { row:true });
+  });
+}
+
+/* Taking up an invitation: clear it so it is not offered twice, then open the
+   match it points at. */
+async function acceptInvite(inv) {
+  Sound.play('tap');
+  UI.invites = (UI.invites || []).filter(i => i.matchId !== inv.matchId);
+  try { await Net.server.clearInvite(inv.matchId); } catch (e) {}
+  const m = await Net.server.openMatch(inv.matchId).catch(() => null);
+  if (!m) { Sound.play('error'); toast('That game has gone.'); renderFriends(); return; }
+  startMatch('online', 'medium', {
+    matchId:inv.matchId, seat:m.seat, seed:m.seed,
+    opponentName:(inv.from && nickOf(inv.from)) || inv.name, opponentId:inv.from || null,
+    theirDeck:(m.decks && m.decks[m.seat === 'w' ? 'b' : 'w']) || null,
+    transport: Net.server.transport(inv.matchId, m.seat),
   });
 }
 
@@ -2542,16 +2776,71 @@ function renderLobby() {
   const fb = $('#btnFriends');
   if (fb) {
     fb.style.display = FRIENDS_ENABLED ? '' : 'none';
-    const waiting = Net.server ? Account.incoming().length : 0;
+    const waiting = Net.server ? Account.incoming().length + (UI.invites || []).length : 0;
     const badge = $('#friendsBadge');
     if (badge) { badge.textContent = waiting ? String(waiting) : ''; badge.style.display = waiting ? '' : 'none'; }
   }
+  renderHallGames();
   rail($('#railRight'), [
     { act:'hall', icon:'banner', label:'Your Hall' },
     { act:'challenges', icon:'trophy', label:'Challenges', badge:`${chDone}/${ACHIEVEMENTS.length}` },
   ]);
   setupHeroSpin();
 }
+/* Whose move is it, in a game nobody has open? Rebuild it from the seed and
+   look. The answer is kept for the session so the hall does not ask twice. */
+const _matchPeek = new Map();
+async function peekMatch(g) {
+  if (_matchPeek.has(g.id)) return _matchPeek.get(g.id);
+  if (!Net.canReachFriends || !Net.server.matchState) return null;
+  _matchPeek.set(g.id, null);                       // do not ask twice at once
+  let ms = null;
+  try { ms = await Net.server.matchState(g.id); } catch (e) { return null; }
+  if (!ms) { _matchPeek.set(g.id, { gone:true }); return _matchPeek.get(g.id); }
+  const decks = { w:(ms.decks && ms.decks.w) || playerDeck(), b:(ms.decks && ms.decks.b) || playerDeck() };
+  const shadow = newGame('online', 'medium', decks, ms.seed);
+  drawCards(shadow, 'w', HAND_SIZE); drawCards(shadow, 'b', HAND_SIZE);
+  const res = replayActions(shadow, ms.actions, Account.id, ms.seat);
+  const out = res.over
+    ? { over:true }
+    : { mine:shadow.state.turn === ms.seat, moves:ms.actions.length };
+  _matchPeek.set(g.id, out);
+  return out;
+}
+/* Ask again next time the hall is opened: they may well have moved. */
+function forgetMatchPeeks(){ _matchPeek.clear(); }
+
+/* A game left half played is easy to forget about, and the other person is
+   waiting, so the hall says so until it is finished. */
+function renderHallGames() {
+  const host = $('#hallGames');
+  if (!host) return;
+  host.replaceChildren();
+  if (!FRIENDS_ENABLED) return;
+  const games = activeGames();
+  if (!games.length) return;
+  for (const g of games.slice(0, 3)) {
+    const who = (g.friendId && nickOf(g.friendId)) || g.name || 'a friend';
+    const peek = _matchPeek.get(g.id);
+    const state = !peek ? { cls:'', text:`Playing <b>${escapeText(who)}</b>`, go:'Continue' }
+      : peek.gone ? { cls:' done', text:`Your game with <b>${escapeText(who)}</b> has gone`, go:'Clear' }
+      : peek.over ? { cls:' done', text:`Your game with <b>${escapeText(who)}</b> has finished`, go:'See' }
+      : peek.mine ? { cls:' yours', text:`<b>Your move</b> against ${escapeText(who)}`, go:'Play' }
+      : { cls:' theirs', text:`Waiting on <b>${escapeText(who)}</b>`, go:'Open' };
+    const row = h(`<button class="hall-game${state.cls}">
+      <span class="hall-game-dot"></span>
+      <span class="hall-game-text">${state.text}</span>
+      <span class="hall-game-go">${state.go}</span></button>`);
+    row.addEventListener('click', () => {
+      Sound.play('tap');
+      if (peek && peek.gone) { forgetGame(g.id); renderLobby(); return; }
+      resumeGame(g);
+    });
+    host.append(row);
+    if (!peek) peekMatch(g).then(r => { if (r && $('#scrLobby').classList.contains('active')) renderHallGames(); });
+  }
+}
+
 function lobbyAction(a) {
   if (a === 'vsai') return openDifficulty();
   if (a === 'pvp') return startMatch('human');
@@ -2575,6 +2864,12 @@ function setupHeroSpin() {
 /* Entering the hall: make an avatar first, then hand out anything owed. */
 function enterLobby() {
   if (!Progress.data.avatar) { showScreen('scrAvatar'); renderAvatarScreen(true); return; }
+  /* Anyone who has used Friends connects on reaching the hall. Without this a
+     player sitting in the hall was not on the server at all, so a challenge
+     had nowhere to arrive: you had to be on the Friends screen to be found.
+     A player who has never opened Friends still makes no network request. */
+  if (FRIENDS_ENABLED && Store.settings.friendsOn) ensureFriendsOnline();
+  forgetMatchPeeks();
   showScreen('scrLobby');
   earnCheck(false);
   const owed = claimMilestones();
