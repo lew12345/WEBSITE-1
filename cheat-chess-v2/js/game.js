@@ -443,12 +443,16 @@ function applyCard(g, id, picks, col) {
   const enemy = opp(col);
   switch (id) {
     case 'bomb': {
-      // the chosen square + 2 random neighbours; the random pick never leaves the caster in check
+      /* Two random squares AROUND the one you choose: the square you aim at is
+         the eye of it and comes through untouched. The random pair is picked
+         from the same seeded stream on both devices, and never one that would
+         leave the caster in check. */
       const { r, c } = picks[0];
       const around = adjacentSquares(r, c);
-      const options = shuffled(g, combos(around, Math.min(BOMB_SPREAD, around.length)));
-      const chosen = options.find(extra => blastSafe(g, [{ r, c }, ...extra], col)) || [];
-      const cells = [{ r, c }, ...chosen];
+      const pairs = shuffled(g, combos(around, Math.min(BOMB_SPREAD, around.length)));
+      const chosen = pairs.find(extra => blastSafe(g, extra, col))
+        || around.filter(a => blastSafe(g, [a], col)).slice(0, 1);
+      const cells = chosen || [];
       events.push({ fx:'bomb', r, c, cells });
       for (const t of cells) {
         const p = pieceAt(g, t.r, t.c);
@@ -962,7 +966,8 @@ function aiPickCard(g, col, level, forced) {
     for (const [t] of single('bomb')) {
       const around = adjacentSquares(t.r, t.c), k = Math.min(BOMB_SPREAD, around.length) / around.length;
       const val = s => { const p = pieceAt(g, s.r, s.c); return !p || ptype(p) === 'k' ? 0 : (color(p) === col ? -1 : 1) * AI_VAL[ptype(p)]; };
-      const v = val(t) + around.reduce((n, a) => n + val(a), 0) * k;
+      /* what is on the square itself no longer matters: the blast goes round it */
+      const v = around.reduce((n, a) => n + val(a), 0) * k;
       if (v > bestV) { bestV = v; best = t; }
     }
     if (best && bestV >= thresh) return pick('bomb', [best]);

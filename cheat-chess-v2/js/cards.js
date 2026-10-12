@@ -25,7 +25,7 @@ const BOMB_SPREAD = 2;      // how many squares beside the target also go up
 const CARDS = [
   /* ------------------------------------------------------------ CORE SET */
   { id:'bomb', name:'Bomb Strike', rarity:'rare', school:'ember', kind:'Instant',
-    desc:'Drop a bomb on any square. That square and 2 random squares beside it go up, whether anything is standing there or not. It does not care whose pieces they are. Kings walk away.',
+    desc:'Drop a bomb beside any square. 2 random squares around the one you pick go up, whether anything is standing there or not. The square you aim at is the eye of it. Kings walk away.',
     flavor:'"Subtlety is overrated."' },
   { id:'lightning', name:'Lightning Bolt', rarity:'rare', school:'ember', kind:'Instant',
     desc:'Strike a whole file. The bolt travels from your side and destroys the first enemy piece it hits. Kings are immune.',
@@ -198,7 +198,7 @@ function setSize(set){ return CARDS.filter(c => c.set === set).length; }
 function cardsOfRarity(rarity, ids){ return (ids || CARDS.map(c => c.id)).filter(id => CARD_BY_ID[id].rarity === rarity); }
 
 const CARD_STAGES = {
-  bomb: ['Choose a square to bomb'],
+  bomb: ['Choose a square to bomb around'],
   shield: ['Choose one of your pieces to shield'],
   frost: ['Choose an enemy piece to freeze'],
   teleport: ['Choose your piece to teleport', 'Choose an empty destination'],

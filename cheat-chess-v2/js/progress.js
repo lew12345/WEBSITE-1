@@ -298,7 +298,8 @@ const ACHIEVEMENTS = [
   { id:'streak3',   name:'Unstoppable',        icon:'★︎', tier:'rare',   target:3,  desc:'Win 3 games in a row against the computer.',       val:c => c.bestStreak },
   { id:'quick',     name:'Blitz',              icon:'⚡︎', tier:'rare',   target:1,  desc:'Beat the computer in 20 moves or fewer.',          val:c => c.quickWins },
   { id:'kg3',       name:'Long Live the King', icon:'♚︎', tier:'rare',   target:3,  desc:"Be saved by King's Guard 3 times.",                val:c => c.kgSaves },
-  { id:'bomb3',     name:'Demolition',         icon:'✹︎', tier:'rare',   target:3,  desc:'Destroy 3 enemy pieces with a single Bomb Strike.', val:c => c.bestBomb },
+  /* the blast is two squares now, so three in one go is no longer possible */
+  { id:'bomb3',     name:'Demolition',         icon:'✹︎', tier:'rare',   target:2,  desc:'Destroy 2 enemy pieces with a single Bomb Strike.', val:c => c.bestBomb },
   { id:'daily10',   name:'Devoted',            icon:'☀︎', tier:'rare',   target:10, desc:'Play on 10 days in a row.',                        val:c => c.dailyStreak },
   { id:'clean',     name:'Honest Victory',     icon:'⚖︎', tier:'epic',   target:1,  desc:'Beat the computer without casting a single card.', val:c => c.cleanWins },
   { id:'hard1',     name:'Shadow Slayer',      icon:'♛︎', tier:'epic',   target:1,  desc:'Defeat the Shadow Warden.',                        val:c => c.aiWins.hard },

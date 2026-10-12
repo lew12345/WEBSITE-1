@@ -79,6 +79,8 @@ const Net = (() => {
     get present(){ return theirPresence; },
     onPresence(fn){ onPresenceChange = fn; },
     send(action){ if (tx) tx.send(action); },
+    /* Wait for anything already sent to reach the server. */
+    flush(){ return tx && tx.flush ? tx.flush() : Promise.resolve(); },
     /* true once a real backend is connected, which is what turns Challenge from
        a practice game into a real one */
     get canReachFriends(){ return !!Net.server; },

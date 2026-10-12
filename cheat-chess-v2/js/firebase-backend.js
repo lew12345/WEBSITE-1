@@ -286,7 +286,8 @@ function FirebaseTransport(db, matchId, seat, uid) {
   const base = db.ref(DB.match(matchId));
   const actions = base.child('actions');
   const theirSeat = seat === 'w' ? 'b' : 'w';
-  let listener = null, presenceCb = null, actionsCb = null, presRef = null, presSub = null;
+  let listener = null, presenceCb = null, actionsCb = null, presRef = null, presSub = null, failCb = null;
+  const pending = new Set();
   let next = 0;                 // the next slot I will write
   let applied = -1;             // the highest slot I have handed over
 
@@ -297,15 +298,48 @@ function FirebaseTransport(db, matchId, seat, uid) {
   const beat = setInterval(() => presRef.set(Date.now()), 25000);
 
   return {
+    /* A slot can only be written once, which is what stops either side
+       rewriting history - but it also means a slot the other player has just
+       taken bounces the write. Losing a move that way, in a game played over
+       days, would be the worst bug in the game, so a bounce is looked up and
+       retried further along the list, and a move that truly cannot be posted
+       is reported rather than dropped. */
     send(action) {
-      const slot = Math.max(next, applied + 1);
-      next = slot + 1;
       const payload = { by:uid, kind:action.kind, at:Date.now() };
       if (action.kind === 'move') payload.mv = action.mv;
       if (action.kind === 'card') { payload.id = action.id; payload.picks = action.picks || []; }
       if (action.kind === 'quit') payload.reason = action.reason || 'resign';
-      actions.child(String(slot)).set(payload).catch(e => console.warn('[net] could not post', e));
+
+      const post = async tries => {
+        const slot = Math.max(next, applied + 1);
+        next = slot + 1;
+        try {
+          await actions.child(String(slot)).set(payload);
+          return true;
+        } catch (e) {
+          if (tries >= 6) {
+            console.warn('[net] could not post', e);
+            if (failCb) failCb(e);
+            return false;
+          }
+          try {
+            const snap = await actions.get();
+            let max = -1;
+            snap.forEach(c => { const n = Number(c.key); if (n > max) max = n; });
+            next = max + 1;
+          } catch (e2) {}
+          return post(tries + 1);
+        }
+      };
+      const job = post(0);
+      pending.add(job);
+      job.then(() => pending.delete(job), () => pending.delete(job));
     },
+    /* Everything still on its way to the server. Leaving a game waits on this,
+       because a phone that is closed a second later would otherwise lose the
+       move that was still in the air. */
+    flush(){ return Promise.all([...pending]).catch(() => {}); },
+    onFail(fn){ failCb = fn; },
     /* Everything that has happened in this match, in order, both sides. A
        device that was closed rebuilds the board from this and carries on. */
     async history() {

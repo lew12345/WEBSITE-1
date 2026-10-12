@@ -750,6 +750,8 @@ async function startMatch(mode, level, opts) {
        it fires for every action already in the match the moment it is attached,
        and applying those before the replay would play them twice. */
     if (!opts.resume) Net.attach(opts.transport, G.seat, applyRemoteAction);
+    if (opts.transport.onFail) opts.transport.onFail(() =>
+      toast('That did not reach them. Check your connection and try again.', 4000));
     Net.onPresence(() => { if (G && G.mode === 'online' && !G.over) renderStatus(); });
   } else Net.detach();
   UI.lastMatch = { mode, level };
@@ -765,11 +767,14 @@ async function startMatch(mode, level, opts) {
   layout();
   drawCards(G, 'w', HAND_SIZE); drawCards(G, 'b', HAND_SIZE);
   renderBoard(); renderPlayers(); renderStatus();
-  renderHands({ hideMine:[0,1,2], hideOpp:[0,1,2] });
-  await sleep(600);
-  if (!alive(ep)) return;
-  await dealCards([0,1,2], [0,1,2]);
-  if (!alive(ep)) return;
+  /* Rejoining a game you are already in: the cards were dealt days ago. */
+  if (!opts.resume) {
+    renderHands({ hideMine:[0,1,2], hideOpp:[0,1,2] });
+    await sleep(600);
+    if (!alive(ep)) return;
+    await dealCards([0,1,2], [0,1,2]);
+    if (!alive(ep)) return;
+  } else renderHands();
   addLog(mode === 'ai' ? `You play Ivory against ${AI_NAMES[level].name}.`
     : mode === 'online' ? `${COLOR_NAME[G.seat]} is yours. ${COLOR_NAME['w']} moves first.`
     : 'Pass & Play: Ivory moves first.');
@@ -1538,11 +1543,14 @@ function openGameMenu() {
 }
 /* Put the game down without ending it. It stays on the server, the hall says
    you are in it, and the friend's row says Continue. */
-function parkMatch() {
+async function parkMatch() {
   if (!G || G.over) return;
   const who = G.opponentName || 'your friend';
   if (G.matchId) rememberGame({ id:G.matchId, seat:G.seat, seed:G.seed,
     friendId:G.opponentId, name:G.opponentName });
+  /* Your last move may still be on its way. Leaving before it lands is how a
+     move goes missing, so this waits for it - briefly, and never forever. */
+  await Promise.race([Net.flush(), sleep(2500)]);
   Net.detach();
   UI.epoch++;
   G = null;
@@ -2353,7 +2361,7 @@ function visitFriend(f) {
     ${named ? `<div class="visit-realname">${escapeText(f.name)} in the game</div>` : ''}
     <div class="modal-body visit">${body}</div>`,
     [{ label:'Challenge', primary:true, fn:() => { closeModal(); challengeFriend(f); } },
-     { label:named ? 'Rename' : 'Name them', fn:() => { closeModal(); renameFriend(f); } },
+     { label:named ? 'Rename' : 'Name', fn:() => { closeModal(); renameFriend(f); } },
      { label:'Close', fn:closeModal }]);
 }
 
@@ -2363,6 +2371,11 @@ async function challengeFriend(f) {
      the way back into it rather than the start of another. */
   const going = gameWith(f.id);
   if (going) return resumeGame(going);
+  /* If they have already challenged you and you have not noticed, this takes
+     their challenge up. Starting a second match between the same two people is
+     how a move appears to go missing: each of you is then in a different game. */
+  const theirs = (UI.invites || []).find(i => i.from === f.id);
+  if (theirs) return acceptInvite(theirs);
   if (Net.canReachFriends) {
     try {
       const m = await Net.server.createMatch(f, playerDeck());
@@ -2818,6 +2831,18 @@ function renderHallGames() {
   host.replaceChildren();
   if (!FRIENDS_ENABLED) return;
   const games = activeGames();
+  /* Someone has set a game up and is waiting: that belongs where you will see
+     it, not only on a screen you might not open. */
+  for (const inv of (UI.invites || [])) {
+    if (gameWith(inv.from)) continue;
+    const who = (inv.from && nickOf(inv.from)) || inv.name || 'A friend';
+    const row = h(`<button class="hall-game invite">
+      <span class="hall-game-dot"></span>
+      <span class="hall-game-text"><b>${escapeText(who)}</b> wants to play</span>
+      <span class="hall-game-go">Play</span></button>`);
+    row.addEventListener('click', () => acceptInvite(inv));
+    host.append(row);
+  }
   if (!games.length) return;
   for (const g of games.slice(0, 3)) {
     const who = (g.friendId && nickOf(g.friendId)) || g.name || 'a friend';

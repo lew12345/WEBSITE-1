@@ -536,3 +536,7 @@
 .hall-game.done .hall-game-dot{ background:#8a9a95; box-shadow:none; animation:none; }
 .friend-name .rec.yours{ color:#9fffd8; }
 .friend-name .rec.theirs{ color:var(--ink-mute); }
+
+.hall-game.invite{ background:linear-gradient(180deg, rgba(92,74,24,.95), rgba(44,32,8,.95));
+  box-shadow:0 0 0 1.5px rgba(232,193,106,.75), 0 4px 14px rgba(0,0,0,.45); }
+.hall-game.invite .hall-game-dot{ background:var(--gold-hi); box-shadow:0 0 10px rgba(232,193,106,.9); }
