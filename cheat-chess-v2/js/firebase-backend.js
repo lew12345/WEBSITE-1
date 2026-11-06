@@ -236,11 +236,32 @@ function FirebaseBackend() {
       /* the challenger takes Ivory, as the host */
       await ref.child('seats').set({ w:uid, b:friend.id });
       await ref.child('seed').set(seed);
-      await ref.child('decks').set({ w:myDeck, b:myDeck });
+      /* only my own deck. Theirs is theirs to write, when they arrive: the
+         deal depends on both, so guessing one makes two different games. */
+      await ref.child('decks').child('w').set(myDeck);
       await ref.child('createdAt').set(Date.now());
       await ref.child('status').set('open');
       await db.ref(DB.invite(friend.id, id)).set({ from:uid, name:me.name, at:Date.now() });
       return { id, seat:'w', seed };
+    },
+    /* Put my deck on the record, once. After that it is fixed for the match,
+       so editing your deck between sessions cannot change a game in progress. */
+    async joinMatch(id, myDeck) {
+      const snap = await db.ref(DB.match(id)).child('seats').get();
+      if (!snap.exists()) return false;
+      const seats = snap.val();
+      const seat = seats.w === uid ? 'w' : seats.b === uid ? 'b' : null;
+      if (!seat) return false;
+      const mine = db.ref(DB.match(id)).child('decks').child(seat);
+      const has = await mine.get();
+      if (!has.exists()) { try { await mine.set(myDeck); } catch (e) {} }
+      return seat;
+    },
+    /* Tells you when the other player has arrived and put their deck down. */
+    watchMatchDecks(id, fn) {
+      const ref = db.ref(DB.match(id)).child('decks');
+      const cb = ref.on('value', s => fn(s.val() || {}));
+      return () => ref.off('value', cb);
     },
     async openMatch(id) {
       const snap = await db.ref(DB.match(id)).get();
@@ -306,6 +327,7 @@ function FirebaseTransport(db, matchId, seat, uid) {
        is reported rather than dropped. */
     send(action) {
       const payload = { by:uid, kind:action.kind, at:Date.now() };
+      if (action.fp) payload.fp = action.fp;
       if (action.kind === 'move') payload.mv = action.mv;
       if (action.kind === 'card') { payload.id = action.id; payload.picks = action.picks || []; }
       if (action.kind === 'quit') payload.reason = action.reason || 'resign';

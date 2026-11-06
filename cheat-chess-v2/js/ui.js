@@ -734,9 +734,11 @@ async function startMatch(mode, level, opts) {
   UI.epoch++;
   const ep = UI.epoch;
   const myDeck = playerDeck();
+  /* Online, both decks come off the match record and never from what this
+     player has equipped right now: the deal depends on both of them, so the
+     two devices have to shuffle the very same two. */
   const decks = mode === 'ai' ? { w:myDeck, b:aiDeck(level) }
-    : mode === 'online' ? { w: opts.seat === 'b' ? (opts.theirDeck || myDeck) : myDeck,
-                            b: opts.seat === 'b' ? myDeck : (opts.theirDeck || myDeck) }
+    : mode === 'online' ? { w:(opts.decks && opts.decks.w) || myDeck, b:(opts.decks && opts.decks.b) || myDeck }
     : { w:myDeck, b:myDeck };
   G = newGame(mode, level, decks, opts.seed);
   if (mode === 'online') {
@@ -749,13 +751,13 @@ async function startMatch(mode, level, opts) {
     /* Rejoining, the listener must not run until the board has been caught up:
        it fires for every action already in the match the moment it is attached,
        and applying those before the replay would play them twice. */
-    if (!opts.resume) Net.attach(opts.transport, G.seat, applyRemoteAction);
     if (opts.transport.onFail) opts.transport.onFail(() =>
       toast('That did not reach them. Check your connection and try again.', 4000));
     Net.onPresence(() => { if (G && G.mode === 'online' && !G.over) renderStatus(); });
   } else Net.detach();
   UI.lastMatch = { mode, level };
-  UI.busy = true; UI.sel = null; UI.legal = []; UI.pending = null; UI.override = null; UI.log = []; UI.playCache = {};
+  UI.busy = true; UI.settling = false; _remoteQueue.length = 0;
+  UI.sel = null; UI.legal = []; UI.pending = null; UI.override = null; UI.log = []; UI.playCache = {};
   UI.viewColor = 'w';
   /* Whoever is sitting here plays up the board. Pass and play turns it over at
      the curtain; online it is set once, because the seat never changes. */
@@ -767,8 +769,9 @@ async function startMatch(mode, level, opts) {
   layout();
   drawCards(G, 'w', HAND_SIZE); drawCards(G, 'b', HAND_SIZE);
   renderBoard(); renderPlayers(); renderStatus();
+  const replaying = mode === 'online' && opts.history && opts.history.length;
   /* Rejoining a game you are already in: the cards were dealt days ago. */
-  if (!opts.resume) {
+  if (!replaying) {
     renderHands({ hideMine:[0,1,2], hideOpp:[0,1,2] });
     await sleep(600);
     if (!alive(ep)) return;
@@ -780,10 +783,15 @@ async function startMatch(mode, level, opts) {
     : 'Pass & Play: Ivory moves first.');
   /* Rejoining: the server kept every action, so the game is simply played
      again from the seed, quietly, and we arrive on the move it is really on. */
-  if (mode === 'online' && opts.resume && opts.transport) {
-    const caught = opts.transport.history ? await catchUpMatch(opts.transport) : {};
-    if (!alive(ep)) return;
-    if (caught.over) return;
+  if (mode === 'online' && opts.transport) {
+    if (replaying) {
+      const caught = catchUpMatch(opts.history);
+      if (!alive(ep)) return;
+      if (caught.over) return;
+    }
+    /* The listener is attached only now: it fires for everything already in
+       the match the moment it goes on, and applying those before the replay
+       would play them twice. */
     Net.attach(opts.transport, G.seat, applyRemoteAction);
   }
   UI.busy = false;
@@ -795,10 +803,8 @@ async function startMatch(mode, level, opts) {
 /* Play the match through from the beginning, without animation, to wherever it
    has got to. Both sides' actions are applied: mine were never applied on this
    device, because this device was not here. */
-async function catchUpMatch(transport) {
-  let list = [];
-  try { list = await transport.history(); } catch (e) { console.warn('[net] could not catch up', e); return {}; }
-  if (!list.length) return {};
+function catchUpMatch(list) {
+  if (!list || !list.length) return {};
   const res = replayActions(G, list, Account.id, mySeat());
   if (res.broke) console.warn('[net] catch up stopped early:', res.broke, res.at);
   if (res.over) {
@@ -811,66 +817,77 @@ async function catchUpMatch(transport) {
   return {};
 }
 
-/* Play a match's recorded actions into a game, with no animation, no sound and
-   no screen: the rules and nothing else. Both rejoining a game and asking the
-   hall whose move it is go through here, so there is only ever one answer. */
-function replayActions(g, actions, myUid, seat) {
-  for (const a of actions) {
-    const col = a.by === myUid ? seat : opp(seat);
-    if (a.kind === 'quit') return { over:true, quitBy:col };
-    if (g.state.turn !== col) return { broke:'out of turn', at:a };
-    if (a.kind === 'move') {
-      const legal = realLegalMoves(g, col).find(m =>
-        m.from.r === a.mv.from.r && m.from.c === a.mv.from.c &&
-        m.to.r === a.mv.to.r && m.to.c === a.mv.to.c);
-      if (!legal) return { broke:'a move that does not fit', at:a };
-      if (legal.promotion) legal.promoChoice = a.mv.promoChoice || 'q';
-      makeMove(g, legal);
-    } else if (a.kind === 'card') {
-      if (!g.hands[col].includes(a.id)) return { broke:'a card that is not in hand', at:a };
-      playCard(g, a.id, a.picks || [], col);
-    }
-    const end = settleTurnQuietly(g);
-    if (end && end.over) return { over:true, end };
-  }
-  return {};
-}
-
-/* What afterTurn does to the board, with none of what it does to the screen:
-   the King's Guard firing and a skipped turn both change the position, so a
-   silent replay has to do them too or the two devices end up in different
-   games. */
-function settleTurnQuietly(g) {
-  for (let guard = 0; guard < 128; guard++) {
-    const end = evaluateEnd(g);
-    if (!end) return null;
-    if (end.over) return end;
-    if (end.kingGuard) { triggerKingGuard(g, g.state.turn); continue; }
-    if (end.skip) { g.state.turn = opp(g.state.turn); g.ply++; purgeEffects(g); continue; }
-    return end;
-  }
-  return null;
-}
-
 /* Their action, arriving from the transport. It runs down the same path as one
    of mine, so the rules, the animations and the sounds are identical. */
+/* Their action arrives whenever it arrives, which can be in the middle of my
+   own move still playing out on screen. The board it was played on is the
+   board AFTER mine has settled, so applying it early would compare against a
+   half finished position and send this device off to rebuild for no reason.
+   They queue, and go in one at a time once the dust is down. */
+const _remoteQueue = [];
+let _remoteDraining = false;
 async function applyRemoteAction(action) {
+  _remoteQueue.push(action);
+  if (_remoteDraining) return;
+  _remoteDraining = true;
+  try {
+    while (_remoteQueue.length) {
+      for (let i = 0; i < 80 && UI.settling; i++) await sleep(60);
+      await applyRemoteNow(_remoteQueue.shift());
+    }
+  } finally { _remoteDraining = false; }
+}
+
+async function applyRemoteNow(action) {
   if (!G || G.mode !== 'online' || G.over) return;
   const them = opp(mySeat());
   if (action.kind === 'quit') {
     UI.epoch++;
     return finishGame({ over:true, winner:mySeat(), loser:them, reason:'resign' });
   }
-  if (G.state.turn !== them) { console.warn('[net] out of turn action ignored', action); return; }
+  /* Their action carries a fingerprint of the board they played it on. If it
+     is not the board in front of me, one of us has drifted, and guessing is
+     the one thing that must not happen: rebuild from the server instead. */
+  if (action.fp && action.fp !== stateFingerprint(G)) return resyncMatch('the boards had drifted apart');
+  if (G.state.turn !== them) return resyncMatch('an action arrived out of turn');
   if (action.kind === 'move') {
     const legal = realLegalMoves(G, them).find(m =>
       m.from.r === action.mv.from.r && m.from.c === action.mv.from.c &&
       m.to.r === action.mv.to.r && m.to.c === action.mv.to.c);
-    if (!legal) { console.warn('[net] their move does not fit this board', action); return; }
+    if (!legal) return resyncMatch('their move did not fit this board');
     if (legal.promotion) legal.promoChoice = action.mv.promoChoice || 'q';
     return performMove(legal);
   }
-  if (action.kind === 'card') return performCard(action.id, action.picks, them);
+  if (action.kind === 'card') {
+    if (!G.hands[them].includes(action.id)) return resyncMatch('they played a card this device had not dealt them');
+    return performCard(action.id, action.picks, them);
+  }
+}
+
+/* The repair: throw away what is on this device and rebuild the match from the
+   server's record of it. Everything needed is there - the seed, both decks and
+   every action in order - so this always lands on the same board as them. */
+let _resyncing = false;
+async function resyncMatch(why) {
+  if (_resyncing || !G || G.mode !== 'online' || !G.matchId || !Net.canReachFriends) return;
+  _resyncing = true;
+  console.warn('[net] rebuilding the match:', why);
+  const id = G.matchId, name = G.opponentName, friendId = G.opponentId;
+  try {
+    const rec = await Net.server.matchState(id);
+    if (rec && matchReady(rec)) {
+      UI.epoch++;
+      Net.detach();
+      G = null;
+      await startMatch('online', 'medium', {
+        matchId:id, seat:rec.seat, seed:rec.seed, decks:rec.decks, history:rec.actions,
+        opponentName:name, opponentId:friendId,
+        transport: Net.server.transport(id, rec.seat),
+      });
+      toast('Caught up with their game.', 2600);
+    }
+  } catch (e) { console.warn('[net] could not rebuild', e); }
+  _resyncing = false;
 }
 
 async function afterTurn() {
@@ -878,7 +895,7 @@ async function afterTurn() {
   UI.sel = null; UI.legal = [];
   const end = evaluateEnd(G);
   if (end) {
-    if (end.over) { renderAll(); return finishGame(end); }
+    if (end.over) { UI.settling = false; renderAll(); return finishGame(end); }
     if (end.kingGuard) {
       const col = G.state.turn;
       renderAll();
@@ -900,7 +917,7 @@ async function afterTurn() {
   if (G.mode === 'ai' && G.state.turn === G.aiColor) { UI.busy = true; renderAll(); return aiTurn(ep); }
   if (G.mode === 'online' && G.state.turn !== mySeat()) {
     /* nothing to do but wait: their action will arrive on its own */
-    UI.busy = true;
+    UI.busy = true; UI.settling = false;
     renderAll();
     return;
   }
@@ -912,17 +929,17 @@ async function afterTurn() {
     await passCurtain(G.state.turn);
     if (!alive(ep)) return;
   }
-  UI.busy = false;
+  UI.busy = false; UI.settling = false;
   renderAll();
   if (end && end.mustCard && isHumanTurn()) toast(end.checked ? 'No moves can save your king. Play a cheat card!' : 'No legal moves! You must play a cheat card.', 3200);
 }
 
 async function performMove(mv) {
   const ep = UI.epoch;
-  UI.busy = true;
+  UI.busy = true; UI.settling = true;
   closeInspector();
   /* post it before the animation, so their device starts catching up at once */
-  if (G.mode === 'online' && G.state.turn === mySeat()) Net.send(Net.move(mv));
+  if (G.mode === 'online' && G.state.turn === mySeat()) Net.send({ ...Net.move(mv), fp:stateFingerprint(G) });
   const res = makeMove(G, mv);
   const placed = G.state.board[idx(mv.to.r, mv.to.c)] || (mv.promotion ? res.col + (mv.promoChoice || 'q') : res.mover);
   const trapped = res.events.some(e => e.fx === 'destroy' && e.r === mv.to.r && e.c === mv.to.c);
@@ -955,9 +972,9 @@ async function performMove(mv) {
 
 async function performCard(id, picks, col, fromRect) {
   const ep = UI.epoch;
-  UI.busy = true;
+  UI.busy = true; UI.settling = true;
   closeInspector();
-  if (G.mode === 'online' && col === mySeat()) Net.send(Net.card(id, picks));
+  if (G.mode === 'online' && col === mySeat()) Net.send({ ...Net.card(id, picks), fp:stateFingerprint(G) });
   UI.sel = null; UI.legal = [];
   const isAI = G.mode === 'ai' && col === G.aiColor;
   let rect = fromRect;
@@ -2244,7 +2261,9 @@ function renderFriends() {
       : (card === null ? 'Hall not shown yet' : 'Looking up their hall...');
     const going = gameWith(f.id);
     const peek = going ? _matchPeek.get(going.id) : null;
-    const turnLine = going && peek && !peek.over && !peek.gone
+    const turnLine = going && peek && peek.waiting
+      ? `<small class="rec theirs">Waiting for them</small>`
+      : going && peek && !peek.over && !peek.gone
       ? `<small class="rec ${peek.mine ? 'yours' : 'theirs'}">${peek.mine ? 'Your move' : 'Their move'}</small>`
       : going ? `<small class="rec">Game in progress</small>` : '';
     const line2 = turnLine || (rec
@@ -2380,10 +2399,7 @@ async function challengeFriend(f) {
     try {
       const m = await Net.server.createMatch(f, playerDeck());
       toast(`Challenge sent to ${friendLabel(f)}.`, 2800);
-      startMatch('online', 'medium', {
-        matchId:m.id, seat:m.seat, seed:m.seed, opponentName:friendLabel(f), opponentId:f.id,
-        transport: Net.server.transport(m.id, m.seat),
-      });
+      await enterOnlineMatch({ id:m.id, name:f.name, friendId:f.id });
     } catch (e) {
       Sound.play('error');
       toast('Could not start that match just now.', 3200);
@@ -2402,23 +2418,62 @@ async function challengeFriend(f) {
   Net.challenge(f);
 }
 
-/* Back into a game you are already in. */
-async function resumeGame(g) {
-  if (!Net.canReachFriends) { Sound.play('error'); toast('You need a connection to pick that game up.'); return; }
-  const m = await Net.server.openMatch(g.id).catch(() => null);
-  if (!m) {
-    forgetGame(g.id);
+/* ------------------------------------------------------ into a friend match
+   Challenging, accepting a challenge and picking a game back up are the same
+   thing: read the match, put my deck on it, wait until both decks are there,
+   then build the board from the record and replay whatever has happened.
+   They used to be three paths that each assembled the game a little
+   differently, which is precisely how two devices ended up playing two
+   different games. */
+async function enterOnlineMatch(info) {
+  if (!Net.canReachFriends) { Sound.play('error'); toast('You need a connection for that.'); return; }
+  const id = info.id;
+  const name = (info.friendId && nickOf(info.friendId)) || info.name || 'your friend';
+  const seat = await Net.server.joinMatch(id, playerDeck()).catch(() => null);
+  let rec = seat ? await Net.server.matchState(id).catch(() => null) : null;
+  if (!rec) {
+    forgetGame(id);
     Sound.play('error');
     toast('That game is no longer there.', 3000);
     renderLobby();
     return;
   }
+  rememberGame({ id, seat:rec.seat, seed:rec.seed, friendId:info.friendId, name:info.name || name });
+  if (!matchReady(rec)) {
+    rec = await waitForOpponent(id, name);
+    if (!rec) return;                               /* they gave up waiting */
+  }
   startMatch('online', 'medium', {
-    matchId:g.id, seat:m.seat, seed:m.seed, resume:true,
-    opponentName:(g.friendId && nickOf(g.friendId)) || g.name, opponentId:g.friendId,
-    theirDeck:(m.decks && m.decks[m.seat === 'w' ? 'b' : 'w']) || null,
-    transport: Net.server.transport(g.id, m.seat),
+    matchId:id, seat:rec.seat, seed:rec.seed, decks:rec.decks, history:rec.actions,
+    opponentName:name, opponentId:info.friendId,
+    transport: Net.server.transport(id, rec.seat),
   });
+}
+
+/* The deal needs both decks, so a challenge that has not been accepted cannot
+   start. Rather than play a game the other side could never reproduce, this
+   waits, and lets you walk away. */
+function waitForOpponent(id, name) {
+  return new Promise(resolve => {
+    let off = null, done = false;
+    const finish = v => { if (done) return; done = true; if (off) off(); closeModal(); resolve(v); };
+    showModal(`<h3>Waiting for ${escapeText(name)}</h3><div class="modal-body" style="text-align:center">
+      <p>They need to open the game before it can be dealt. You will both start from
+      the same shuffle, so neither of you can begin without the other.</p>
+      <p style="font-size:.8rem;color:var(--ink-mute)">You can leave this and come back:
+      the game will be waiting in your hall.</p></div>`,
+      [{ label:'Leave it for now', fn:() => { finish(null); renderLobby(); } }], { noDismiss:true });
+    off = Net.server.watchMatchDecks(id, async decks => {
+      if (!decks || !decks.w || !decks.b) return;
+      const rec = await Net.server.matchState(id).catch(() => null);
+      if (rec && matchReady(rec)) finish(rec);
+    });
+  });
+}
+
+/* Back into a game you are already in. */
+function resumeGame(g) {
+  return enterOnlineMatch({ id:g.id, name:g.name, friendId:g.friendId });
 }
 
 /* Someone challenged you: offer it once, then clear it either way. */
@@ -2450,14 +2505,7 @@ async function acceptInvite(inv) {
   Sound.play('tap');
   UI.invites = (UI.invites || []).filter(i => i.matchId !== inv.matchId);
   try { await Net.server.clearInvite(inv.matchId); } catch (e) {}
-  const m = await Net.server.openMatch(inv.matchId).catch(() => null);
-  if (!m) { Sound.play('error'); toast('That game has gone.'); renderFriends(); return; }
-  startMatch('online', 'medium', {
-    matchId:inv.matchId, seat:m.seat, seed:m.seed,
-    opponentName:(inv.from && nickOf(inv.from)) || inv.name, opponentId:inv.from || null,
-    theirDeck:(m.decks && m.decks[m.seat === 'w' ? 'b' : 'w']) || null,
-    transport: Net.server.transport(inv.matchId, m.seat),
-  });
+  await enterOnlineMatch({ id:inv.matchId, name:inv.name, friendId:inv.from || null });
 }
 
 /* ============================================================ champion */
@@ -2810,13 +2858,12 @@ async function peekMatch(g) {
   let ms = null;
   try { ms = await Net.server.matchState(g.id); } catch (e) { return null; }
   if (!ms) { _matchPeek.set(g.id, { gone:true }); return _matchPeek.get(g.id); }
-  const decks = { w:(ms.decks && ms.decks.w) || playerDeck(), b:(ms.decks && ms.decks.b) || playerDeck() };
-  const shadow = newGame('online', 'medium', decks, ms.seed);
-  drawCards(shadow, 'w', HAND_SIZE); drawCards(shadow, 'b', HAND_SIZE);
-  const res = replayActions(shadow, ms.actions, Account.id, ms.seat);
-  const out = res.over
-    ? { over:true }
-    : { mine:shadow.state.turn === ms.seat, moves:ms.actions.length };
+  /* Built from the record, exactly as the game itself is built - and if the
+     other player has not put their deck down yet there is no game to read. */
+  const res = matchStateFrom(ms, Account.id);
+  const out = res.waiting ? { waiting:true }
+    : res.over ? { over:true }
+    : { mine:res.g.state.turn === ms.seat, moves:(ms.actions || []).length };
   _matchPeek.set(g.id, out);
   return out;
 }
@@ -2848,6 +2895,7 @@ function renderHallGames() {
     const who = (g.friendId && nickOf(g.friendId)) || g.name || 'a friend';
     const peek = _matchPeek.get(g.id);
     const state = !peek ? { cls:'', text:`Playing <b>${escapeText(who)}</b>`, go:'Continue' }
+      : peek.waiting ? { cls:' theirs', text:`Waiting for <b>${escapeText(who)}</b> to join`, go:'Open' }
       : peek.gone ? { cls:' done', text:`Your game with <b>${escapeText(who)}</b> has gone`, go:'Clear' }
       : peek.over ? { cls:' done', text:`Your game with <b>${escapeText(who)}</b> has finished`, go:'See' }
       : peek.mine ? { cls:' yours', text:`<b>Your move</b> against ${escapeText(who)}`, go:'Play' }
