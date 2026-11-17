@@ -294,7 +294,12 @@ function FirebaseBackend() {
       return () => ref.off('value', cb);
     },
     async clearInvite(id){ await db.ref(DB.invite(uid, id)).remove(); },
-    transport(matchId, seat){ return FirebaseTransport(db, matchId, seat, uid); },
+    /* `since` is the last slot the caller has already applied. Without it the
+       listener hands back every action in the match the moment it attaches -
+       all of them already on the board - and each one looks like a game that
+       has drifted, so the app rebuilds, re-attaches, and does it again. That
+       was the "Caught up with their game" loop. */
+    transport(matchId, seat, since){ return FirebaseTransport(db, matchId, seat, uid, since); },
   };
 }
 
@@ -303,14 +308,15 @@ function FirebaseBackend() {
    them ordered and replayable: a device that was closed catches up simply by
    reading the ones it has not seen.
    ------------------------------------------------------------------------- */
-function FirebaseTransport(db, matchId, seat, uid) {
+function FirebaseTransport(db, matchId, seat, uid, since) {
   const base = db.ref(DB.match(matchId));
   const actions = base.child('actions');
   const theirSeat = seat === 'w' ? 'b' : 'w';
   let listener = null, presenceCb = null, actionsCb = null, presRef = null, presSub = null, failCb = null;
   const pending = new Set();
-  let next = 0;                 // the next slot I will write
-  let applied = -1;             // the highest slot I have handed over
+  const from = Number.isFinite(since) ? since : -1;
+  let next = from + 1;          // the next slot I will write
+  let applied = from;           // the highest slot I have handed over
 
   /* I am here, and I am not here as soon as the connection drops. */
   presRef = base.child('presence').child(seat);

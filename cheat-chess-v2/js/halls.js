@@ -143,7 +143,7 @@ function equippedHall(){ return Progress.data.equipped.hall || 'stone'; }
 function ownsHall(id) {
   const hall = hallById(id);
   if (!hall) return false;
-  if (hall.premium) return ownsPack();
+  if (hall.premium) return ownsPack('hall');
   if (!hall.price) return true;
   return hallsOwned().includes(id);
 }
@@ -353,7 +353,7 @@ function hallPartsOwned(kind) {
 function ownsHallPart(kind, id) {
   const item = hallPart(kind, id);
   if (!item) return false;
-  if (item.premium) return ownsPack();
+  if (item.premium) return ownsPack('hall');
   if (!item.price) return true;
   return hallPartsOwned(kind).includes(id);
 }

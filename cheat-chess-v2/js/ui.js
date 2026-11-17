@@ -49,7 +49,9 @@ function playableCached(id, col){
 function makeCard(id, opts={}) {
   const c = CARD_BY_ID[id], sc = SCHOOLS[c.school], rar = RARITY[c.rarity];
   const d = document.createElement('div');
-  d.className = 'tcg ' + c.rarity + (c.set === 'relic' ? ' relic' : '') + (opts.compact ? ' compact' : '') + (opts.down ? ' down' : '') + (c.name.length >= 13 ? ' name-long' : '');
+  d.className = 'tcg ' + c.rarity + (c.set === 'relic' ? ' relic' : '') + (opts.compact ? ' compact' : '')
+    + (opts.down ? ' down' : '') + (c.name.length >= 13 ? ' name-long' : '')
+    + (isMastered(id) ? ' mastered' : '');
   d.style.cssText = `--accent:${sc.accent};--deep:${sc.deep};--mid:${sc.mid};--gem:${rar.gem};` + (opts.cw ? `--cw:${opts.cw}px;` : '');
   d.dataset.card = id;
   d.innerHTML = `<div class="tcg-inner">
@@ -62,7 +64,7 @@ function makeCard(id, opts={}) {
       <div class="tcg-text"><div class="tcg-desc">${c.desc}</div><div class="tcg-flavor">${c.flavor}</div></div>
       <div class="tcg-foot"><span>${c.set === 'relic' ? 'Relic' : 'No.'} ${String(c.num).padStart(2,'0')}/${setSize(c.set)}</span><span>${rar.name}</span></div>
     </div></div>
-    <div class="tcg-face tcg-back">${CARD_BACK_SVG}</div></div>`;
+    <div class="tcg-face tcg-back">${c.rarity === 'gilded' ? gildedBackSVG() : CARD_BACK_SVG}</div></div>`;
   return d;
 }
 /* Shrink a full card's rules text until it fits its parchment box (call once it is in the DOM). */
@@ -73,11 +75,12 @@ function fitCardText(card) {
   t.style.fontSize = '';
   while (t.scrollHeight > t.clientHeight + 1 && s > .62) { s -= .04; t.style.fontSize = s + 'em'; }
 }
-function makeBack(cw) {
+function makeBack(cw, opts = {}) {
   const d = document.createElement('div');
-  d.className = 'tcg down';
+  d.className = 'tcg down' + (opts.gilded ? ' gilded' : '');
   if (cw) d.style.setProperty('--cw', cw + 'px');
-  d.innerHTML = `<div class="tcg-inner"><div class="tcg-face tcg-front"></div><div class="tcg-face tcg-back">${CARD_BACK_SVG}</div></div>`;
+  d.innerHTML = `<div class="tcg-inner"><div class="tcg-face tcg-front"></div>` +
+    `<div class="tcg-face tcg-back">${opts.gilded ? gildedBackSVG() : CARD_BACK_SVG}</div></div>`;
   return d;
 }
 
@@ -249,6 +252,22 @@ function animatePieces(list, dur=280) {
   }
 }
 
+/* A few flakes of gold off the champion that is carrying the Gauntlet. */
+function gildedGlitter(col) {
+  const champ = $(col === viewColor() ? '#crestMe' : '#crestOpp');
+  if (!champ) return;
+  const box = champ.getBoundingClientRect();
+  for (let i = 0; i < 10; i++) {
+    const f = document.createElement('i');
+    f.className = 'glitter';
+    f.style.cssText = `left:${box.left + Math.random() * box.width}px;top:${box.top + box.height * .2 + Math.random() * box.height * .5}px;` +
+      `--dx:${(Math.random() * 40 - 20).toFixed(0)}px;--dur:${(900 + Math.random() * 700).toFixed(0)}ms;` +
+      `--sz:${(2 + Math.random() * 3).toFixed(1)}px`;
+    document.body.append(f);
+    setTimeout(() => f.remove(), 1700);
+  }
+}
+
 function renderPlayers() {
   const my = viewColor(), op = opp(my);
   const turnActive = !G.over;
@@ -256,9 +275,16 @@ function renderPlayers() {
   $('#crestOpp').innerHTML = avatarNode(avatarFor(op), { ring:false });
   $('#rowMe').classList.toggle('fighter', true);
   $('#rowOpp').classList.toggle('fighter', true);
-  const sub = G.mode === 'ai' ? `<small>${COLOR_NAME[G.humanColor]}</small>` : '';
-  $('#nameMe').innerHTML = playerName(my) + sub;
-  $('#nameOpp').innerHTML = playerName(op) + (G.mode === 'ai' ? `<small>${AI_NAMES[G.level].title}</small>` : '');
+  /* Your rank and level, on the board, where you can see them mid game. */
+  const mine = `<small>${escapeText(rankName(playerLevel()))} &middot; ${playerLevel()}</small>`;
+  const theirs = G.mode === 'ai' ? `<small>${AI_NAMES[G.level].title}</small>`
+    : G.mode === 'online' && G.opponentLevel ? `<small>${escapeText(rankName(G.opponentLevel))} &middot; ${G.opponentLevel}</small>`
+    : '';
+  $('#nameMe').innerHTML = playerName(my) + (G.mode === 'human' ? `<small>${COLOR_NAME[my]}</small>` : mine);
+  $('#nameOpp').innerHTML = playerName(op) + (G.mode === 'human' ? `<small>${COLOR_NAME[op]}</small>` : theirs);
+  /* whoever brought the Gauntlet glows for the whole game */
+  $('#crestMe').classList.toggle('gilded', !!(G.gilded && G.gilded[my]));
+  $('#crestOpp').classList.toggle('gilded', !!(G.gilded && G.gilded[op]));
   $('#rowMe').classList.toggle('active', turnActive && G.state.turn === my);
   $('#rowOpp').classList.toggle('active', turnActive && G.state.turn === op);
   const capsHtml = col => { // pieces of `col` that were lost
@@ -324,8 +350,9 @@ function renderHands(opts={}) {
   hand.classList.toggle('waiting', !isHumanTurn());
   const oh = $('#oppHand');
   const ofrag = document.createDocumentFragment();
-  G.hands[op].forEach((_, i) => {
-    const b = makeBack(34);
+  G.hands[op].forEach((id, i) => {
+    /* Every back is the same except one: the Gauntlet is meant to be seen. */
+    const b = id === 'gauntlet' ? makeBack(34, { gilded:true }) : makeBack(34);
     if (opts.hideOpp && opts.hideOpp.includes(i)) b.style.opacity = 0;
     ofrag.append(b);
   });
@@ -746,6 +773,13 @@ async function startMatch(mode, level, opts) {
     G.opponentName = opts.opponentName || null;
     G.opponentId = opts.opponentId || null;
     G.matchId = opts.matchId || null;
+    const theirCard = opts.opponentId ? Account.cardFor(opts.opponentId) : null;
+    if (theirCard) {
+      G.opponentAvatar = { body:theirCard.body, skin:theirCard.skin, hair:theirCard.hair,
+                           hairColor:theirCard.hairColor, gear:theirCard.gear, pet:theirCard.pet };
+      G.opponentSet = theirCard.pieces || 'classic';
+      G.opponentLevel = theirCard.lv || 0;
+    }
     if (G.matchId) rememberGame({ id:G.matchId, seat:G.seat, seed:opts.seed,
       friendId:G.opponentId, name:G.opponentName });
     /* Rejoining, the listener must not run until the board has been caught up:
@@ -755,8 +789,8 @@ async function startMatch(mode, level, opts) {
       toast('That did not reach them. Check your connection and try again.', 4000));
     Net.onPresence(() => { if (G && G.mode === 'online' && !G.over) renderStatus(); });
   } else Net.detach();
-  UI.lastMatch = { mode, level };
-  UI.busy = true; UI.settling = false; _remoteQueue.length = 0;
+  UI.lastMatch = { mode, level, friendId:opts.opponentId || null, friendName:opts.opponentName || null };
+  UI.busy = true; UI.settling = false; _remoteQueue.length = 0; _resyncTimes = [];
   UI.sel = null; UI.legal = []; UI.pending = null; UI.override = null; UI.log = []; UI.playCache = {};
   UI.viewColor = 'w';
   /* Whoever is sitting here plays up the board. Pass and play turns it over at
@@ -864,12 +898,29 @@ async function applyRemoteNow(action) {
   }
 }
 
+/* The highest slot in a record: where a rejoin has caught up to. */
+function lastSlot(actions) {
+  let m = -1;
+  for (const a of actions || []) if (Number.isFinite(a.seq) && a.seq > m) m = a.seq;
+  return m;
+}
+
 /* The repair: throw away what is on this device and rebuild the match from the
    server's record of it. Everything needed is there - the seed, both decks and
    every action in order - so this always lands on the same board as them. */
-let _resyncing = false;
+let _resyncing = false, _resyncTimes = [];
 async function resyncMatch(why) {
   if (_resyncing || !G || G.mode !== 'online' || !G.matchId || !Net.canReachFriends) return;
+  /* A rebuild is a repair, not a way of life. If they start stacking up,
+     something is wrong that rebuilding will not fix, and carrying on would
+     only spam the screen and lock the board. */
+  const now = Date.now();
+  _resyncTimes = _resyncTimes.filter(t => now - t < 15000).concat(now);
+  if (_resyncTimes.length > 3) {
+    console.warn('[net] too many rebuilds; stopping', why);
+    toast('This game is out of step with theirs. Leave it and open it again.', 5000);
+    return;
+  }
   _resyncing = true;
   console.warn('[net] rebuilding the match:', why);
   const id = G.matchId, name = G.opponentName, friendId = G.opponentId;
@@ -882,7 +933,7 @@ async function resyncMatch(why) {
       await startMatch('online', 'medium', {
         matchId:id, seat:rec.seat, seed:rec.seed, decks:rec.decks, history:rec.actions,
         opponentName:name, opponentId:friendId,
-        transport: Net.server.transport(id, rec.seat),
+        transport: Net.server.transport(id, rec.seat, lastSlot(rec.actions)),
       });
       toast('Caught up with their game.', 2600);
     }
@@ -958,6 +1009,7 @@ async function performMove(mv) {
     const vr = mv.enPassant ? mv.from.r : mv.to.r;
     setTimeout(() => { ghostPiece(vr, mv.to.c, res.victim); captureBurst(vr, mv.to.c, res.victim); Haptics.pulse('medium'); }, 180);
   } else Haptics.pulse('light');
+  if (G.gilded && G.gilded[res.col]) gildedGlitter(res.col);
   const who = playerName(res.col);
   const pn = PIECE_NAME[ptype(res.mover)];
   addLog(mv.castle ? `${who} castled.` : `${who}: ${pn} ${sqName(mv.from.r,mv.from.c)}→${sqName(mv.to.r,mv.to.c)}` +
@@ -991,9 +1043,12 @@ async function performCard(id, picks, col, fromRect) {
   if (!alive(ep)) return;
   const res = playCard(G, id, picks, col);
   if (res.events.some(e => e.fx === 'destroy' && color(e.piece) !== col)) setTimeout(() => champReact(opp(col), 'hurt'), 500);
-  const counts = G.mode === 'human' || col === G.humanColor;
+  /* a card cast on the sofa counts for the statistics, not for progress */
+  const counts = col === G.humanColor || G.mode === 'online' || G.mode === 'human';
   if (counts) {
     Store.stats.cardsPlayed++; Store.stats.cardUse[id] = (Store.stats.cardUse[id] || 0) + 1; Store.saveStats();
+  }
+  if (counts && G.mode !== 'human') {
     const pc = Progress.data.c;
     pc.cardsCast++; pc.castIds[id] = 1;
     if (id === 'bomb') pc.bestBomb = Math.max(pc.bestBomb, res.events.filter(e => e.fx === 'destroy' && color(e.piece) !== col).length);
@@ -1423,7 +1478,9 @@ function finishGame(end) {
       if (!G.cardsPlayed[G.humanColor]) pc.cleanWins++;
     } else pc.streak = 0;
   } else {
-    st.pvp++; Progress.data.c.pvp++;
+    st.pvp++;
+    /* the challenge counter only moves for a game against somebody else */
+    if (G.mode !== 'human') Progress.data.c.pvp++;
     if (end.winner) { outcome = 'win'; title = `${COLOR_NAME[end.winner]} Wins!`; sub = `${COLOR_NAME[end.winner]} wins ${reasonText}.`; }
     else { title = 'Draw'; sub = reasonText; }
     /* Online, "someone won" is not the same as "you won". */
@@ -1439,10 +1496,14 @@ function finishGame(end) {
   /* The Immortal run: only the games that are actually hard move it. */
   const myResult = G.mode === 'ai' ? outcome : G.mode === 'online' ? G.myResult : null;
   const glory = myResult ? recordGlory(myResult, G.mode, G.level) : { none:true };
-  /* Giving up costs Gambits instead of earning them. Only the spendable balance
-     moves, so a rank or a card milestone is never taken back. */
+  /* Pass and play earns nothing at all. Both hands are yours, so anything it
+     paid out could simply be farmed against yourself: no Gambits, no rank, no
+     forfeit, and no challenge progress either (see below). */
+  const sofa = G.mode === 'human';
   const quit = end.reason === 'resign' || end.reason === 'abandon';
-  if (quit && (G.mode === 'ai' || end.loser === viewColor())) {
+  if (sofa) {
+    /* nothing moves */
+  } else if (quit && (G.mode === 'ai' || end.loser === viewColor())) {
     const lost = chargeGambits(XP.quit);
     if (lost) toast('You forfeited ' + lost + ' ' + CURRENCY + '.', 2600);
   } else {
@@ -1454,11 +1515,17 @@ function finishGame(end) {
   if (G.matchId) forgetGame(G.matchId);
   Store.saveStats();
   Progress.save();
+  if (sofa) {
+    /* no milestones, no challenges, no card draws from a game with yourself */
+    UI.rewards.length = 0;
+  }
   /* a finished game moves the number and may move the title, so friends should
      see the new one next time they look */
   if (typeof Account !== 'undefined' && Account.publishCard) Account.publishCard();
-  earnCheck(false);
-  for (const m of claimMilestones()) UI.rewards.push({ milestone:m.milestone, card:m.card });
+  if (!sofa) {
+    earnCheck(false);
+    for (const m of claimMilestones()) UI.rewards.push({ milestone:m.milestone, card:m.card });
+  }
   addLog(title + ' ' + sub);
   if (end.winner) { champReact(end.winner, 'cheer'); champReact(opp(end.winner), 'slump'); }
   Sound.play(outcome === 'win' ? 'win' : outcome === 'lose' ? 'lose' : 'draw');
@@ -1472,7 +1539,13 @@ function finishGame(end) {
       <div class="end-title">${title}</div><div class="end-sub">${sub}</div>
       <div class="end-stats"><div><b>+${G.gambits || 0}</b>Gambits</div><div><b>${G.cardsPlayed.w + G.cardsPlayed.b}</b>Cards played</div>
       ${G.mode === 'ai' ? `<div><b>${st.ai[G.level].w}</b>Wins vs ${AI_NAMES[G.level].title}</div>` : ''}</div></div>`,
-      [{ label:'Play Again', primary:true, fn:() => { closeModal(); startMatch(lm.mode, lm.level); } },
+      [{ label:G.mode === 'online' ? 'Rematch' : 'Play Again', primary:true, fn:() => {
+          closeModal();
+          /* A friend game cannot simply start again: it needs a new match on
+             the server and a fresh challenge to them. */
+          if (lm.mode === 'online') return rematchFriend(lm.friendId, lm.friendName);
+          startMatch(lm.mode, lm.level);
+        } },
        { label:'Back to Hall', fn:() => { closeModal(); UI.epoch++; UI.screenStack = ['scrTitle']; enterLobby(); } }], { noDismiss:true });
     if (glory.gained) UI.rewards.push({ glory:'gained' });
     else if (glory.lost) UI.rewards.push({ glory:'lost' });
@@ -2016,7 +2089,19 @@ function ensureFriendsOnline() {
     const res = await Account.connect();
     if (res.ok) {
       Net.server = be;
-      Account.onUpdate = () => { if ($('#scrFriends').classList.contains('active')) renderFriends(); };
+      Account.onUpdate = () => {
+        if ($('#scrFriends').classList.contains('active')) renderFriends();
+        /* their card may have arrived after the game started */
+        if (G && G.mode === 'online' && G.opponentId && !G.opponentAvatar) {
+          const c = Account.cardFor(G.opponentId);
+          if (c) {
+            G.opponentAvatar = { body:c.body, skin:c.skin, hair:c.hair, hairColor:c.hairColor, gear:c.gear, pet:c.pet };
+            G.opponentSet = c.pieces || 'classic';
+            G.opponentLevel = c.lv || 0;
+            renderPlayers(); renderBoard();
+          }
+        }
+      };
       watchForInvites();
       Account.restore().then(r => { if (r && r.pick === 'remote') { renderLobby(); toast('Welcome back. Your account save was ' + r.why + '.', 4000); } });
     } else {
@@ -2051,7 +2136,7 @@ function renderHalls() {
     host.append(grid);
   };
 
-  if (!ownsPack()) { const b = packBanner(); b.style.marginBottom = '14px'; host.append(b); }
+  if (!ownsPack('hall')) { const b = packBanner('hall'); b.style.marginBottom = '14px'; host.append(b); }
   shelf('Halls', 'The room itself', HALLS.map(hallItemCard));
   shelf('Runners', 'The floor is a chessboard; this goes over it',
         HALL_CARPETS.map(i => hallPartCard('carpet', i)));
@@ -2286,7 +2371,11 @@ function renderFriends() {
     row.querySelector('[data-drop]').addEventListener('click', () => {
       showModal(`<h3>Remove ${escapeText(f.name)}?</h3><div class="modal-body" style="text-align:center">
         <p>You can add each other again with a code.</p></div>`,
-        [{ label:'Remove', danger:true, fn:async () => { closeModal(); await Account.remove(f.id); renderFriends(); } },
+        [{ label:'Remove', danger:true, fn:async () => {
+            closeModal();
+            await removeFriendAndGames(f.id);
+            renderFriends();
+          } },
          { label:'Keep', fn:closeModal }], { row:true });
     });
     box.append(row);
@@ -2369,6 +2458,8 @@ function visitFriend(f) {
          <div class="visit-row"><span>Rank</span><b>${rankName(card.lv || 1)}</b></div>
          <div class="visit-row"><span>Gambits earned</span><b>${(card.xp || 0).toLocaleString()}</b></div>
          <div class="visit-row"><span>Against you</span><b>${rec ? vsText(rec) : 'Never played'}</b></div>
+         <div class="visit-row"><span>On their own</span><b>${(card.sw || card.sl || card.sd)
+            ? `${card.sw | 0}W ${card.sl | 0}L ${card.sd | 0}D` : 'Nothing yet'}</b></div>
          <div class="visit-row"><span>Hall</span><b>${hallById(card.hall) ? hallById(card.hall).name : 'The Great Hall'}</b></div>
          <div class="visit-row"><span>Fights with</span><b>${shopItem('pieces', card.pieces) ? shopItem('pieces', card.pieces).name : 'Ivory and Obsidian'}</b></div>
        </div>
@@ -2439,6 +2530,9 @@ async function enterOnlineMatch(info) {
     return;
   }
   rememberGame({ id, seat:rec.seat, seed:rec.seed, friendId:info.friendId, name:info.name || name });
+  /* their champion, their chess set and their rank, so the board shows who you
+     are actually playing */
+  if (info.friendId) Account.cardFor(info.friendId);
   if (!matchReady(rec)) {
     rec = await waitForOpponent(id, name);
     if (!rec) return;                               /* they gave up waiting */
@@ -2446,7 +2540,7 @@ async function enterOnlineMatch(info) {
   startMatch('online', 'medium', {
     matchId:id, seat:rec.seat, seed:rec.seed, decks:rec.decks, history:rec.actions,
     opponentName:name, opponentId:info.friendId,
-    transport: Net.server.transport(id, rec.seat),
+    transport: Net.server.transport(id, rec.seat, lastSlot(rec.actions)),
   });
 }
 
@@ -2469,6 +2563,44 @@ function waitForOpponent(id, name) {
       if (rec && matchReady(rec)) finish(rec);
     });
   });
+}
+
+/* Removing somebody takes everything between you with it: the game you were in
+   the middle of, and any challenge either way. Leaving a match behind with
+   nobody attached to it is what left one stuck on the hall with nothing to
+   tap. */
+async function removeFriendAndGames(friendId) {
+  const going = gameWith(friendId);
+  if (going) {
+    /* tell them, if there is still a match to tell */
+    try {
+      if (Net.canReachFriends) {
+        const m = await Net.server.matchState(going.id);
+        if (m) {
+          const tx = Net.server.transport(going.id, m.seat, lastSlot(m.actions));
+          tx.send({ kind:'quit', reason:'removed' });
+          if (tx.flush) await Promise.race([tx.flush(), sleep(1500)]);
+          if (tx.close) tx.close();
+        }
+      }
+    } catch (e) {}
+    forgetGame(going.id);
+  }
+  UI.invites = (UI.invites || []).filter(i => i.from !== friendId);
+  try { if (Net.canReachFriends) {
+    for (const inv of (UI.invites || [])) if (inv.from === friendId) await Net.server.clearInvite(inv.matchId);
+  } } catch (e) {}
+  await Account.remove(friendId);
+  renderLobby();
+}
+
+/* Another game with the same person: a new match, and a challenge they will
+   see in their hall. */
+async function rematchFriend(friendId, name) {
+  if (!friendId || !Net.canReachFriends) { Sound.play('error'); toast('You need a connection for a rematch.'); return; }
+  const f = Account.friends().find(x => x.id === friendId) || { id:friendId, name:name || 'your friend' };
+  if (!Account.isFriend(friendId)) { Sound.play('error'); toast('They are no longer on your friends list.'); return; }
+  await challengeFriend(f);
 }
 
 /* Back into a game you are already in. */
@@ -2710,24 +2842,33 @@ function renderShop() {
   const tab = UI.shopTab;
   const grid = $('#shopGrid');
   grid.replaceChildren();
-  if (!ownsPack() && SHOP[tab].some(i => i.premium)) {
+  if (!ownsPack(packFor(tab)) && SHOP[tab].some(i => i.premium)) {
     grid.append(packBanner());
   }
   for (const item of SHOP[tab]) grid.append(shopItemCard(tab, item, renderShop));
 }
 
 /* The one purchase, shown wherever a Legendary item is on display. */
-function packBanner() {
-    const show = LEGENDARY_PACK.showcase.map(sc => ({ tab:sc.tab, item:shopItem(sc.tab, sc.id) }));
-    const banner = h(`<div class="pack-banner">
-      <div class="pack-icons">${show.map(({ tab, item }) => tab === 'pieces'
-        ? `<span class="pv-set"><span class="pv-piece">${pieceArt('wq', item.id)}</span><span class="pv-piece">${pieceArt('wn', item.id)}</span></span>`
-        : `<span class="pv-mini">${avatarNode({ ...myAvatar(), gear:item.id }, { ring:false, noPet:true })}</span>`).join('')}</div>
-      <div class="pack-text"><b>${LEGENDARY_PACK.name}</b><span>${show.map(s => s.item.name).join(', ')} and ${legendaryItems().length - 3} more. Looks only.</span></div>
-      <button class="plaque small legendary" id="packBuy">&pound;${LEGENDARY_PACK.price}</button></div>`);
-    banner.querySelector('#packBuy').addEventListener('click', () => { Sound.play('tap'); openPackOffer(); });
-    return banner;
-  for (const item of SHOP[tab]) grid.append(shopItemCard(tab, item, renderShop));
+function packBanner(packId) {
+  const pack = PACKS[packId || 'champion'];
+  const icons = pack.id === 'hall'
+    ? ['dragonkeep', 'starfall'].map(id => `<span class="pv-hall">${hallThumbSVG(id)}</span>`).join('')
+    : pack.showcase.map(sc => {
+        const item = shopItem(sc.tab, sc.id);
+        return sc.tab === 'pieces'
+          ? `<span class="pv-set"><span class="pv-piece">${pieceArt('wq', item.id)}</span><span class="pv-piece">${pieceArt('wn', item.id)}</span></span>`
+          : `<span class="pv-mini">${avatarNode({ ...myAvatar(), gear:item.id }, { ring:false, noPet:true })}</span>`;
+      }).join('');
+  const names = pack.id === 'hall'
+    ? 'Dragon Keep, Starfall Sanctum'
+    : pack.showcase.map(sc => (shopItem(sc.tab, sc.id) || {}).name).filter(Boolean).join(', ');
+  const more = Math.max(0, packItems(pack.id).length - (pack.id === 'hall' ? 2 : pack.showcase.length));
+  const banner = h(`<div class="pack-banner">
+    <div class="pack-icons">${icons}</div>
+    <div class="pack-text"><b>${pack.name}</b><span>${names}${more ? ` and ${more} more` : ''}. Looks only.</span></div>
+    <button class="plaque small legendary" data-buy-pack="1">&pound;${pack.price}</button></div>`);
+  banner.querySelector('[data-buy-pack]').addEventListener('click', () => { Sound.play('tap'); openPackOffer(pack.id); });
+  return banner;
 }
 
 /* One item, however you came across it: its preview, what it is, and the one
@@ -2801,6 +2942,9 @@ function myAvatar(){ return Progress.data.avatar || DEFAULT_AVATAR; }
 function avatarFor(col) {
   if (!G) return myAvatar();
   if (G.mode === 'ai') return col === G.humanColor ? myAvatar() : AI_AVATARS[G.level];
+  /* Online you are facing a real person, so you face what they are wearing:
+     their champion comes off their calling card. */
+  if (G.mode === 'online') return col === mySeat() ? myAvatar() : (G.opponentAvatar || AI_AVATARS.rival);
   return col === 'w' ? myAvatar() : AI_AVATARS.rival;
 }
 
@@ -2811,8 +2955,8 @@ function renderLobby() {
      point of showing it: there is always a bigger one. */
   const run = gloryRun();
   $('#lobbyRank').innerHTML = isImmortal()
-    ? `<span class="glory-title">${GLORY.title}</span><span class="glory-rank">${lp.name}</span>`
-    : escapeText(lp.name);
+    ? `<span class="glory-title">${GLORY.title}</span><span class="glory-rank">${rankLine(lp.level)}</span>`
+    : `${escapeText(lp.name)}<span class="rank-level">Level ${lp.level}</span>`;
   $('#lobbyXpBar').style.width = Math.max(3, lp.pct) + '%';
   $('#lobbyXpBar').classList.toggle('maxed', lp.level >= MAX_LEVEL);
   const earned = `${P.xp.lifetime.toLocaleString()} earned`;
@@ -2831,7 +2975,7 @@ function renderLobby() {
     host.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => { Sound.play('tap'); lobbyAction(b.dataset.act); }));
   };
   rail($('#railLeft'), [
-    { act:'cards', icon:'cards', label:'Cards', badge: fresh ? 'NEW' : `${ownedCards().length}/${CARDS.length}`, hot:!!fresh },
+    { act:'cards', icon:'cards', label:'Cards', badge: fresh ? 'NEW' : `${ownedCards().length}/${COLLECTION_SIZE}`, hot:!!fresh },
     { act:'avatar', icon:'helm', label:'Champion' },
   ]);
   const fb = $('#btnFriends');
@@ -2909,6 +3053,32 @@ function renderHallGames() {
       if (peek && peek.gone) { forgetGame(g.id); renderLobby(); return; }
       resumeGame(g);
     });
+    /* a long press, or the x, gives up on a game that has got stuck */
+    const drop = h('<button class="hall-game-x" aria-label="Give up this game">&times;</button>');
+    drop.addEventListener('click', e => {
+      e.stopPropagation();
+      Sound.play('tap');
+      showModal(`<h3>Give up this game?</h3><div class="modal-body" style="text-align:center">
+        <p>It will be taken off your hall. ${escapeText(who)} will see you resigned.</p></div>`,
+        [{ label:'Give it up', danger:true, fn:async () => {
+            closeModal();
+            try {
+              if (Net.canReachFriends) {
+                const m = await Net.server.matchState(g.id);
+                if (m) {
+                  const tx = Net.server.transport(g.id, m.seat, lastSlot(m.actions));
+                  tx.send({ kind:'quit', reason:'resign' });
+                  if (tx.flush) await Promise.race([tx.flush(), sleep(1500)]);
+                  if (tx.close) tx.close();
+                }
+              }
+            } catch (e) {}
+            forgetGame(g.id);
+            renderLobby();
+          } },
+         { label:'Keep it', fn:closeModal }], { row:true });
+    });
+    row.append(drop);
     host.append(row);
     if (!peek) peekMatch(g).then(r => { if (r && $('#scrLobby').classList.contains('active')) renderHallGames(); });
   }
@@ -2995,7 +3165,7 @@ function renderCards() {
   const full = draft.length === DECK_SIZE;
   $('#deckCount').textContent = draft.length + '/' + DECK_SIZE;
   $('#deckCount').className = 'deck-count' + (full ? ' full' : '');
-  $('#cardsSub').textContent = owned.length + ' of ' + CARDS.length + ' collected';
+  $('#cardsSub').textContent = owned.length + ' of ' + COLLECTION_SIZE + ' collected';
   const free = DECK_SIZE - draft.length;
   const saved = UI.deckSavedAt && Date.now() - UI.deckSavedAt < 2200;
   $('#trayHint').textContent = saved ? 'Saved' : full ? 'Ready to play' : free + (free === 1 ? ' slot free' : ' slots free');
@@ -3051,6 +3221,29 @@ function renderCards() {
     el.addEventListener('click', () => { Sound.play('error'); toast('Complete a challenge to unlock this Relic card.'); });
     grid.append(el);
   });
+  /* The Gauntlet has a shelf of its own, because it is not part of the
+     collection: it is bought, it cannot be played, and it is the only card
+     your opponent can recognise from the back. */
+  grid.append(h('<div class="codex-head">The Gauntlet<small>' +
+    (ownsGauntlet() ? (inDeck('gauntlet') ? 'in your deck' : 'yours') : 'a boast, for sale') + '</small></div>'));
+  if (ownsGauntlet()) {
+    const el = makeCard('gauntlet', { compact:true });
+    const on = inDeck('gauntlet');
+    if (on) el.classList.add('picked');
+    el.addEventListener('click', () => { Sound.play('tap'); openCardView('gauntlet', el); });
+    const pin = h('<button class="card-pin' + (on ? ' out' : '') + '" aria-label="' +
+      (on ? 'Take it out of your deck' : 'Put it in your deck') + '">' + (on ? '&minus;' : '+') + '</button>');
+    pin.addEventListener('click', e => { e.stopPropagation(); deckToggle('gauntlet'); });
+    el.append(pin);
+    grid.append(el);
+  } else {
+    const el = makeCard('gauntlet', { compact:true });
+    el.classList.add('for-sale');
+    el.append(h('<div class="sale-tag">&pound;' + GAUNTLET_SKU.price + '</div>'));
+    el.addEventListener('click', () => { Sound.play('tap'); openGauntletOffer(); });
+    grid.append(el);
+  }
+
   Progress.data.seen = un.slice();
   Progress.save();
 }
@@ -3183,19 +3376,52 @@ function openItemView(tab, item) {
 }
 
 /* One purchase, every Legendary item. */
-function openPackOffer() {
-  if (ownsPack()) { toast('You already own the Legendary Pack.'); return; }
-  const items = legendaryItems();
-  showModal(`<h3>${LEGENDARY_PACK.name}</h3><div class="modal-body" style="text-align:center">
-    <p>${LEGENDARY_PACK.blurb}</p>
-    <div class="pack-list">${items.map(i => `<div class="pack-row"><b>${i.name}</b><span>${SHOP_TABS.find(t => t.key === i.tab).name}</span></div>`).join('')}</div>
-    <p style="font-size:.8rem;color:var(--ink-mute)">One payment, no subscription. Nothing in the pack changes the rules, the cards or the odds.</p></div>`,
-    [{ label:`Unlock for £${LEGENDARY_PACK.price}`, primary:true, fn:async () => {
+const SLOT_LABEL = { armour:'Armour', outfits:'Outfits', pieces:'Chess Sets', pets:'Companions',
+                     halls:'Halls', carpets:'Runners', crests:'Banners' };
+function openPackOffer(packId) {
+  const pack = PACKS[packId || 'champion'];
+  if (ownsPack(pack.id)) { toast(`You already own the ${pack.name}.`); return; }
+  const items = packItems(pack.id);
+  showModal(`<h3>${pack.name}</h3><div class="modal-body" style="text-align:center">
+    <p>${pack.blurb}</p>
+    <div class="pack-list">${items.map(i => `<div class="pack-row"><b>${i.name}</b><span>${SLOT_LABEL[i.tab] || ''}</span></div>`).join('')}</div>
+    <p style="font-size:.8rem;color:var(--ink-mute)">One payment, no subscription. Nothing in it changes the rules, the cards or the odds.</p></div>`,
+    [{ label:`Unlock for £${pack.price}`, primary:true, fn:async () => {
         closeModal();
-        const res = await Billing.buyPack();
+        const res = await Billing.buy(pack.id);
         Sound.play(res.ok ? 'win' : 'error');
-        if (res.ok) { Haptics.pulse('heavy'); toast(res.test ? 'Legendary Pack unlocked (test build).' : 'Legendary Pack unlocked.'); renderShop(); }
-        else toast(res.reason, 3600);
+        if (res.ok) {
+          Haptics.pulse('heavy');
+          toast(res.test ? `${pack.name} unlocked (test build).` : `${pack.name} unlocked.`);
+          renderShop(); if ($('#scrHalls').classList.contains('active')) renderHalls();
+          if ($('#scrAvatar').classList.contains('active')) renderAvatarScreen(false);
+        } else toast(res.reason, 3600);
+      } },
+     { label:'Not now', fn:closeModal }], { row:true });
+}
+
+/* -------------------------------------------------------- the Gauntlet --
+   Sold on its own, because it is not a look: it is a handicap you are paying
+   to carry. The offer says so in as many words. */
+function openGauntletOffer() {
+  if (ownsGauntlet()) { toast('The Gauntlet is already yours. Put it in your deck.'); return; }
+  showModal(`<h3>The Gauntlet</h3><div class="modal-body" style="text-align:center">
+    <div class="gauntlet-show">${makeCardHTML ? '' : ''}</div>
+    <p>Put it in your deck and it is always one of your three cards - and it does nothing.
+    You play the whole game with two.</p>
+    <p>Its back is gold, so your opponent knows you are carrying it, and your champion
+    glitters from the first move to the last.</p>
+    <p style="font-size:.8rem;color:var(--ink-mute)">It gives you no advantage of any kind.
+    That is the point of it.</p></div>`,
+    [{ label:`Unlock for £${GAUNTLET_SKU.price}`, primary:true, fn:async () => {
+        closeModal();
+        const res = await Billing.buy('gauntlet');
+        Sound.play(res.ok ? 'win' : 'error');
+        if (res.ok) {
+          Haptics.pulse('heavy');
+          toast(res.test ? 'The Gauntlet is yours (test build).' : 'The Gauntlet is yours.');
+          UI.deckDraft = null; renderCards();
+        } else toast(res.reason, 3600);
       } },
      { label:'Not now', fn:closeModal }], { row:true });
 }

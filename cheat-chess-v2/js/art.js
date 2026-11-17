@@ -34,6 +34,27 @@ const ART_DEFS = `
   <radialGradient id="bg-verdant" cx=".5" cy=".55" r=".8">
     <stop offset="0" stop-color="#d3ffec"/><stop offset=".3" stop-color="#2ea57f"/><stop offset=".7" stop-color="#0b3a30"/><stop offset="1" stop-color="#041612"/>
   </radialGradient>
+  <linearGradient id="deep-ember" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#1a0604" stop-opacity="0"/><stop offset=".42" stop-color="#1a0604" stop-opacity=".82"/><stop offset="1" stop-color="#120402"/>
+  </linearGradient>
+  <linearGradient id="deep-tide" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#050f1d" stop-opacity="0"/><stop offset=".42" stop-color="#050f1d" stop-opacity=".82"/><stop offset="1" stop-color="#030a14"/>
+  </linearGradient>
+  <linearGradient id="deep-arcane" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#0d0620" stop-opacity="0"/><stop offset=".42" stop-color="#0d0620" stop-opacity=".82"/><stop offset="1" stop-color="#080418"/>
+  </linearGradient>
+  <linearGradient id="deep-verdant" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#041612" stop-opacity="0"/><stop offset=".42" stop-color="#041612" stop-opacity=".82"/><stop offset="1" stop-color="#03100d"/>
+  </linearGradient>
+  <radialGradient id="bg-gilded" cx=".5" cy=".46" r=".8">
+    <stop offset="0" stop-color="#fff3c4"/><stop offset=".28" stop-color="#e8bb52"/><stop offset=".66" stop-color="#8a5f14"/><stop offset="1" stop-color="#2e1f06"/>
+  </radialGradient>
+  <linearGradient id="deep-gilded" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#2e1f06" stop-opacity="0"/><stop offset=".42" stop-color="#2e1f06" stop-opacity=".8"/><stop offset="1" stop-color="#1d1304"/>
+  </linearGradient>
+  <radialGradient id="gGoldBack" cx=".5" cy=".45" r=".75">
+    <stop offset="0" stop-color="#6b4a10"/><stop offset=".55" stop-color="#3a2708"/><stop offset="1" stop-color="#1c1304"/>
+  </radialGradient>
   <radialGradient id="gFire" cx=".5" cy=".5" r=".5">
     <stop offset="0" stop-color="#fffbe0"/><stop offset=".3" stop-color="#ffd35c"/><stop offset=".6" stop-color="#ff7a2a"/><stop offset=".85" stop-color="#c2261a" stop-opacity=".6"/><stop offset="1" stop-color="#c2261a" stop-opacity="0"/>
   </radialGradient>
@@ -205,13 +226,35 @@ function silhouette(t, x, y, s, fill, stroke, accent) {
 }
 
 /* ---------------------------------------------------------- card art helpers */
+/* One feather, pointing up from where it is pinned, which is what makes a wing
+   read as a wing instead of a leaf. Fan a handful and you have a bird. */
+function feather(x, y, ang, len, w, fill, line) {
+  const d = `M0 0C${w} ${-len * .28} ${w * .72} ${-len * .72} 0 ${-len}` +
+            `C${-w * .72} ${-len * .72} ${-w} ${-len * .28} 0 0z`;
+  return `<path d="${d}" fill="${fill}" stroke="${line || '#6d2112'}" stroke-width=".9" ` +
+         `stroke-linejoin="round" transform="translate(${x} ${y}) rotate(${ang})"/>`;
+}
+function wing(x, y, dir, spread, fills) {
+  /* five feathers from one shoulder, longest at the top */
+  return spread.map((a, i) =>
+    feather(x, y, dir * a[0], a[1], a[2], fills[i % fills.length])).join('');
+}
 function sparkles(list, col) {
   return list.map(([x,y,r]) =>
     `<path d="M${x} ${y-r}L${x+r*.28} ${y-r*.28}L${x+r} ${y}L${x+r*.28} ${y+r*.28}L${x} ${y+r}L${x-r*.28} ${y+r*.28}L${x-r} ${y}L${x-r*.28} ${y-r*.28}z" fill="${col||'#fff'}" opacity=".85"/>`).join('');
 }
 const STARS = [[12,10,1.6],[86,14,2],[78,6,1.1],[20,26,1],[92,32,1.3],[8,40,1.1]];
+/* The art fills the card now, so the canvas is a card shape. Each
+   illustration is still composed in the top 100x80 - that is where the eye
+   goes and where every one of them was drawn - and below it the scene falls
+   away into the school's own darkness, which is what the rules panel sits on.
+   One wrapper, so all fifty gained the extra height at once. */
 function artWrap(school, inner) {
-  return `<svg viewBox="0 0 100 80" preserveAspectRatio="xMidYMid slice"><rect width="100" height="80" fill="url(#bg-${school})"/>${inner}</svg>`;
+  return `<svg viewBox="0 0 100 140" preserveAspectRatio="xMidYMid slice">
+    <rect width="100" height="140" fill="url(#bg-${school})"/>
+    <g transform="translate(-7 9) scale(1.14)">${inner}</g>
+    <rect y="86" width="100" height="54" fill="url(#deep-${school})"/>
+  </svg>`;
 }
 function hills(c1, c2) {
   return `<path d="M0 62Q20 52 42 60T100 56V80H0z" fill="${c1}" opacity=".8"/><path d="M0 70Q30 62 58 69T100 67V80H0z" fill="${c2}"/>`;
@@ -219,6 +262,30 @@ function hills(c1, c2) {
 
 /* ------------------------------------------------------ card illustrations */
 const CARD_ART = {
+  /* A plate gauntlet thrown down on the board: the old way of saying you
+     fancy your chances. Nothing but gold and a shadow. */
+  gauntlet: () => artWrap('gilded', `
+    <radialGradient id="gaGlow" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffe9a8" stop-opacity=".85"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+    <circle cx="50" cy="44" r="34" fill="url(#gaGlow)"/>
+    ${sparkles(STARS,'#fff3c4')}
+    ${hills('#5a3f0c','#2e1f06')}
+    <ellipse cx="52" cy="64" rx="26" ry="6" fill="#1d1304" opacity=".6"/>
+    <g stroke="#6b4a10" stroke-width="1.2" stroke-linejoin="round">
+      <path d="M30 60c-4-6-3-13 2-17l20-14c4-3 9-2 12 2l6 8c3 4 2 9-2 12L46 62c-5 4-12 3-16-2z" fill="url(#gGold)"/>
+      <path d="M36 44l16-11c3-2 6-1 8 1l3 4c2 3 1 6-2 8L45 57" fill="none" stroke="#a9792a" stroke-width="1.6"/>
+      <path d="M60 30c3-4 8-5 12-2l6 5c3 3 3 7 0 10l-4 4-16-13z" fill="#f0cd6a"/>
+      <path d="M26 56c-5-1-9 2-10 7 4-2 8-2 11 0z" fill="url(#gGold)"/>
+      <path d="M22 48c-5-2-10 0-12 5 4-2 8-2 11 1z" fill="url(#gGold)"/>
+      <path d="M20 40c-5-2-10 1-11 6 4-3 8-3 11-1z" fill="url(#gGold)"/>
+    </g>
+    <g fill="#fffbe0" opacity=".9">
+      <path d="M68 24l1.6 4 4 1.6-4 1.6-1.6 4-1.6-4-4-1.6 4-1.6z"/>
+      <path d="M26 30l1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2z"/>
+    </g>
+    ${sparkles([[82,40,2.6],[16,62,2],[64,58,1.8]], '#fffbe0')}`),
+
   bomb: () => artWrap('ember', `
     <g stroke="#ffe0a0" stroke-width="1.1" opacity=".45">${[0,45,90,135,180,225,270,315].map(a=>`<line x1="50" y1="46" x2="${50+44*Math.cos(a*Math.PI/180)}" y2="${46+44*Math.sin(a*Math.PI/180)}"/>`).join('')}</g>
     <circle cx="50" cy="46" r="32" fill="url(#gFire)" opacity=".5"/>
@@ -479,17 +546,25 @@ const CARD_ART = {
     </g>
     ${sparkles([[20,44,3],[80,42,3],[49,31,3.4]], '#ffffff')}`),
 
+  /* Rising, seen head on: a fanned wing from each shoulder, a long neck, a
+     crest, and three tail feathers trailing into the fire below. */
   phoenix: () => artWrap('ember', `
-    <circle cx="50" cy="38" r="30" fill="url(#gFire)" opacity=".45"/>
+    <circle cx="50" cy="40" r="36" fill="url(#gFire)" opacity=".55"/>
     ${sparkles(STARS,'#ffe7b8')}
     ${hills('#2a0a06','#150403')}
-    <path d="M50 30C38 18 22 14 8 18c10 2 18 8 22 14-8-2-16 0-22 4 12 0 22 4 30 10z" fill="#ff7a2a" stroke="#7a2716" stroke-width="1"/>
-    <path d="M50 30c12-12 28-16 42-12-10 2-18 8-22 14 8-2 16 0 22 4-12 0-22 4-30 10z" fill="#ff7a2a" stroke="#7a2716" stroke-width="1"/>
-    <path d="M50 30C40 22 28 20 18 22c8 3 14 7 18 12" fill="#ffd35c" opacity=".85"/><path d="M50 30c10-8 22-10 32-8-8 3-14 7-18 12" fill="#ffd35c" opacity=".85"/>
-    <path d="M44 34c0-8 3-14 6-16 3 2 6 8 6 16 0 8-3 12-6 14-3-2-6-6-6-14z" fill="url(#gGold)" stroke="#7a2716" stroke-width="1"/>
-    <circle cx="50" cy="20" r="4" fill="url(#gGold)" stroke="#7a2716" stroke-width="1"/><path d="M53 20l4 1-4 1.5" fill="#ffd35c"/>
-    <path d="M47 46c-4 8-2 16 3 22 1-6 4-10 3-16 3 4 6 8 4 14 5-6 5-14 0-20z" fill="url(#gFire)"/>
-    ${sparkles([[30,50,2],[72,52,2.4],[58,62,1.4]], '#fffbe0')}`),
+    ${wing(40, 40, -1, [[26,42,7],[44,40,7],[62,34,6.5],[78,27,6],[94,20,5]], ['#ff8a33','#ffa23f','#ff7a2a'])}
+    ${wing(60, 40, 1, [[26,42,7],[44,40,7],[62,34,6.5],[78,27,6],[94,20,5]], ['#ff8a33','#ffa23f','#ff7a2a'])}
+    <path d="M50 58c-5 0-8-5-8-12 0-9 4-17 8-20 4 3 8 11 8 20 0 7-3 12-8 12z" fill="url(#gGold)" stroke="#6d2112" stroke-width="1"/>
+    <path d="M50 30c-2.6 0-4.4-2.4-4.4-5.6S47.4 17 50 17s4.4 2.6 4.4 7.4S52.6 30 50 30z" fill="#ffc46b" stroke="#6d2112" stroke-width="1"/>
+    <circle cx="50" cy="20" r="5.4" fill="url(#gGold)" stroke="#6d2112" stroke-width="1"/>
+    <path d="M50 14.6c-1.4-4.6 0-8 2.6-10-.4 3.4.8 5.8 3 7-2.2 .8-4.2 1.6-5.6 3z" fill="#ffd35c" stroke="#6d2112" stroke-width=".8"/>
+    <path d="M55 19.4l6 1.8-6 2z" fill="#ffd35c" stroke="#6d2112" stroke-width=".7"/>
+    <circle cx="51.6" cy="19" r="1.2" fill="#2a0a06"/>
+    ${feather(44, 58, 14, 24, 5, '#ff7a2a')}
+    ${feather(50, 60, 0, 30, 5.5, '#ffa23f')}
+    ${feather(56, 58, -14, 24, 5, '#ff7a2a')}
+    <path d="M50 74q-4 7-2 14 2-4 2-7 2 5 0 10 5-6 5-11z" fill="#fffbe0" opacity=".65"/>
+    ${sparkles([[20,46,2.4],[82,48,2.6],[66,24,1.6],[32,22,1.4]], '#fffbe0')}`),
 
   blizzard: () => artWrap('tide', `
     ${sparkles(STARS,'#dff6ff')}
@@ -604,16 +679,37 @@ const CARD_ART = {
     <rect x="8" y="64" width="84" height="6" rx="2" fill="#3a1206" stroke="#1a0804" stroke-width="1.2"/>
     ${sparkles([[24,26,2.4],[52,18,3],[76,28,2]], '#fffbe0')}`),
 
+  /* In profile and filling the frame: a membraned wing behind, a long neck, a
+     wedge of a head with a brow, swept horns and teeth, and fire laid across
+     the bottom of the picture. */
   dragonrage: () => artWrap('ember', `
-    <circle cx="50" cy="42" r="34" fill="url(#gFire)" opacity=".45"/>
+    <circle cx="54" cy="40" r="38" fill="url(#gFire)" opacity=".45"/>
     ${sparkles(STARS,'#ffe7b8')}
     ${hills('#2a0a06','#150403')}
-    <path d="M16 54c6-16 20-26 34-26 8 0 14 4 16 10 2-4 8-6 12-4-4 2-6 6-5 10 5 0 9 3 10 8-6-2-10 0-12 4-4 8-16 14-28 14-14 0-22-6-27-16z" fill="#7a2716" stroke="#2a0a06" stroke-width="1.4"/>
-    <path d="M66 38c4-2 9-1 11 3-5-1-8 0-10 3z" fill="#ffb36b"/>
-    <circle cx="62" cy="36" r="2.6" fill="#ffd35c" stroke="#2a0a06" stroke-width="1"/><circle cx="62.7" cy="36.4" r="1.2" fill="#2a0a06"/>
-    <path d="M70 44q8 2 16-2-6 8-16 8z" fill="url(#gFire)"/>
-    <path d="M30 30q-6-10-2-18 4 8 10 10z" fill="#a03a1a" stroke="#2a0a06" stroke-width="1"/>
-    ${sparkles([[84,40,3.4],[88,50,2],[74,58,2.2]], '#fffbe0')}`),
+    <path d="M58 44C64 24 78 10 96 6c-8 10-12 20-12 30 8-6 16-8 24-6-10 4-18 11-22 20-6 12-16 18-28 18z"
+      fill="#6d2112" stroke="#2a0a06" stroke-width="1.3" stroke-linejoin="round"/>
+    <g stroke="#2a0a06" stroke-width=".9" fill="none" opacity=".75">
+      <path d="M60 44C68 28 80 16 94 10"/><path d="M62 52c10-12 20-20 34-22"/>
+    </g>
+    <path d="M20 76c0-14 6-24 16-30 8-5 16-8 22-12 4-3 6-7 7-11l12 5c-2 9-8 16-17 21-10 6-18 10-23 15-4 4-6 8-7 12z"
+      fill="#a8371a" stroke="#2a0a06" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M24 76c1-11 7-19 16-24 9-5 17-9 22-14-3 8-10 14-19 19-9 5-15 11-19 19z" fill="#c9502a" opacity=".65"/>
+    <path d="M68 16c6-4 14-4 20 1 5 4 6 10 2 14l-8 7c-4 3-9 4-13 2l-9-4c-3-2-4-6-2-9z"
+      fill="#b03c1c" stroke="#2a0a06" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M60 27l-14 5c-3 1-4 4-2 6 2 3 6 4 10 3l14-5z" fill="#b03c1c" stroke="#2a0a06" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M58 33l-12 4c-2 1-2 3 0 4 3 1 6 1 9 0l11-4z" fill="#8c2a14" stroke="#2a0a06" stroke-width="1.1" stroke-linejoin="round"/>
+    <g fill="#fff3d0" stroke="#2a0a06" stroke-width=".6">
+      <path d="M50 32l2 3 2-3z"/><path d="M55 30.5l2 3 2-3z"/><path d="M60 29l1.8 3 2-3z"/>
+    </g>
+    <path d="M70 14c6-7 14-10 22-8-7 1-13 5-17 11z" fill="#5e1c0f" stroke="#2a0a06" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M76 18c7-5 15-6 22-3-7 0-13 3-18 8z" fill="#5e1c0f" stroke="#2a0a06" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M72 20c5-2 10-1 13 2-5-1-9 0-12 3z" fill="#d96a35" opacity=".8"/>
+    <circle cx="70" cy="22" r="3.4" fill="#ffd35c" stroke="#2a0a06" stroke-width="1"/>
+    <ellipse cx="70.6" cy="22.3" rx="1.1" ry="2.2" fill="#2a0a06"/>
+    <path d="M44 36q-16 2-28 12 14-4 24-3z" fill="#ff9a3a" opacity=".95"/>
+    <path d="M42 39q-18 4-30 15 16-7 28-7z" fill="#ffd35c" opacity=".9"/>
+    <path d="M40 42q-16 5-26 14 14-7 24-7z" fill="#fffbe0" opacity=".7"/>
+    ${sparkles([[90,52,3],[20,28,2],[80,62,2.2]], '#fffbe0')}`),
 
   deepfreeze: () => artWrap('tide', `
     ${sparkles(STARS,'#dff6ff')}
@@ -784,7 +880,28 @@ const CARD_ART = {
     ${sparkles([[18,26,2],[84,24,2.4],[50,66,2.6]], '#ffd35c')}`),
 };
 const _artCache = {};
-function cardArt(id){ return _artCache[id] || (_artCache[id] = CARD_ART[id]()); }
+/* A card's picture: the painting if there is one in art/cards, otherwise the
+   version drawn here in code. tools/scan-card-art.py keeps the list, so adding
+   a painting is dropping in a PNG and running that - no code change, and a
+   half finished set is fine. The <img> also removes itself if the file will
+   not load, so a bad file falls back rather than showing a broken picture. */
+function cardArt(id) {
+  if (_artCache[id]) return _artCache[id];
+  const drawn = (CARD_ART[id] || CARD_ART.bomb)();
+  const painted = typeof CARD_PNG !== 'undefined' && CARD_PNG.includes(id)
+    ? `<img class="card-paint" src="art/cards/${id}.png?v=${typeof CARD_PNG_VER !== 'undefined' ? CARD_PNG_VER : 1}" alt="" draggable="false" onerror="this.remove()">`
+    : '';
+  return (_artCache[id] = drawn + painted);
+}
+
+/* The Gauntlet's own back: the same plaque in gold, because the point of it is
+   that the other player can see it from across the board. */
+function gildedBackSVG() {
+  return CARD_BACK_SVG
+    .replace(/url\(#gBack\)/g, 'url(#gGoldBack)')
+    .replace(/#5fe8b4/g, '#ffe9a8')
+    .replace(/#0a2d2b/g, '#3a2708');
+}
 
 /* ----------------------------------------------------------------- card back */
 const CARD_BACK_SVG = `<svg viewBox="0 0 100 140" preserveAspectRatio="none">

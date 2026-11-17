@@ -134,6 +134,8 @@ const Account = (() => {
       carpet:(d.equipped && d.equipped.carpet) || 'none',
       crest:(d.equipped && d.equipped.crest) || 'pawn',
       lv:playerLevel(), xp:d.xp.lifetime | 0, imm:isImmortal() ? 1 : 0,
+      /* what they have done on their own, so a friend can see it */
+      sw:soloRecord().w, sl:soloRecord().l, sd:soloRecord().d,
       at:Date.now(),
     };
   }

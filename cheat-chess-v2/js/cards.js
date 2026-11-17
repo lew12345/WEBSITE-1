@@ -13,7 +13,11 @@ const SCHOOLS = {
   verdant: { name:'Verdant', type:'Trick', accent:'#5fe8b4', deep:'#06221c', mid:'#135243', glow:'#b5ffe2' },
 };
 
+/* Mastery: cast a card this many times and its art goes foil for good. */
+const MASTERY_CASTS = 25;
+
 const RARITY = {
+  gilded:    { name:'Gilded',    gem:'#ffdf8a', rank:9 },
   common:    { name:'Common',    gem:'#dfe9ef', rank:0 },
   rare:      { name:'Rare',      gem:'#ffc94a', rank:1 },
   epic:      { name:'Epic',      gem:'#c77dff', rank:2 },
@@ -93,7 +97,7 @@ const CARDS = [
     desc:'Three meteors crash onto random pieces in the far half of the board. Anything standing there burns, yours included. Kings are spared.',
     flavor:'Look up. Too late.' },
   { id:'chain', set:'relic', name:'Chain Lightning', rarity:'rare', school:'ember', kind:'Instant',
-    desc:'Strike an enemy pawn. The lightning leaps on to every enemy pawn touching it, destroying up to 4 pawns in a chain.',
+    desc:'Strike an enemy pawn. The lightning leaps on to every enemy pawn touching it, destroying up to 3 pawns in a chain.',
     flavor:'It never strikes just once.' },
   { id:'phoenix', set:'relic', name:'Phoenix Feather', rarity:'epic', school:'ember', kind:'Summon',
     desc:'Revive your most valuable lost piece, placing it on any empty square on your half of the board.',
@@ -190,15 +194,34 @@ const CARDS = [
     c.num = c.set === 'core' ? ++core : ++relic;
   }
 })();
+/* -------------------------------------------------------------- the Gauntlet
+   Bought, never played. In your deck it takes one of your three hand slots and
+   stays there, so you play the game with two cheat cards instead of three. It
+   has no effect of any kind - it is a boast, and a handicap, and the only card
+   whose back the other player can recognise. */
+const GAUNTLET_ID = 'gauntlet';
+CARDS.push({
+  id:GAUNTLET_ID, set:'gilded', name:'The Gauntlet', rarity:'gilded', school:'ember', kind:'Boast',
+  desc:'Takes one of your three card slots for the whole game and does nothing with it. ' +
+       'Your opponent can see you are carrying it. You are telling them you do not need it.',
+  flavor:'Thrown down, not played.', num:1,
+});
+
 const CARD_BY_ID = Object.fromEntries(CARDS.map(c => [c.id, c]));
 const CORE_IDS = CARDS.filter(c => c.set === 'core').map(c => c.id);
 const RELIC_IDS = CARDS.filter(c => c.set === 'relic').map(c => c.id);
 const DECK_SIZE = 20;
 function setSize(set){ return CARDS.filter(c => c.set === set).length; }
-function cardsOfRarity(rarity, ids){ return (ids || CARDS.map(c => c.id)).filter(id => CARD_BY_ID[id].rarity === rarity); }
+/* The cards that make up the collection: the Gauntlet is bought, not collected,
+   so it is counted nowhere and never turns up in a milestone or an AI deck. */
+const COLLECTION_IDS = CARDS.filter(c => c.set === 'core' || c.set === 'relic').map(c => c.id);
+const COLLECTION_SIZE = COLLECTION_IDS.length;
+function isGauntlet(id){ return id === GAUNTLET_ID; }
+function cardsOfRarity(rarity, ids){ return (ids || COLLECTION_IDS).filter(id => CARD_BY_ID[id].rarity === rarity); }
 
 const CARD_STAGES = {
   bomb: ['Choose a square to bomb around'],
+  gauntlet: [],
   shield: ['Choose one of your pieces to shield'],
   frost: ['Choose an enemy piece to freeze'],
   teleport: ['Choose your piece to teleport', 'Choose an empty destination'],

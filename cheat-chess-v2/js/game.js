@@ -5,6 +5,7 @@
    ========================================================================= */
 var G = null;
 const HAND_SIZE = 3;
+const CHAIN_MAX = 3;            // pawns one Chain Lightning can take
 const AI_NAMES = {
   easy:   { name:'Pip the Apprentice', short:'Pip',       title:'Apprentice' },
   medium: { name:'Sir Rowan',          short:'Sir Rowan', title:'Knight' },
@@ -28,8 +29,15 @@ function newGame(mode, level, decks, seed) {
     bonusTurns:{ w:0, b:0 },        /* turns still owed, from Second Wind and the like */
   };
   g.rs = g.seed;
-  g.decks.w = shuffled(g, d.w || CORE_IDS);
-  g.decks.b = shuffled(g, d.b || CORE_IDS);
+  /* The Gauntlet is not shuffled in: whoever brought it simply always has it,
+     which is the whole of its effect. It comes out of the deck here so the
+     draws are unchanged, and goes into the hand at the deal. */
+  g.gilded = { w:false, b:false };
+  for (const col of ['w', 'b']) {
+    const list = (col === 'w' ? d.w : d.b) || CORE_IDS;
+    g.gilded[col] = list.includes('gauntlet');
+    g.decks[col] = shuffled(g, list.filter(id => id !== 'gauntlet'));
+  }
   return g;
 }
 
@@ -65,9 +73,21 @@ function isWall(g,r,c){ return !!g.state.walls[r+','+c]; }
 function isSilenced(g,col){ return (g.effects.silence || []).some(s => s.color === col && g.ply < s.expire); }
 function drawCards(g, col, n) {
   const out = [];
+  /* Whoever brought the Gauntlet is holding it before anything else, and never
+     puts it down: it is one of the three all game. */
+  if (g.gilded && g.gilded[col] && !g.hands[col].includes('gauntlet')) {
+    g.hands[col].push('gauntlet');
+    n = Math.max(0, n - 1);
+  }
   for (let i=0; i<n; i++) if (g.decks[col].length) out.push(g.decks[col].pop());
   g.hands[col].push(...out);
   return out;
+}
+/* The Gauntlet cannot be taken, burned, swapped or discarded: it is in that
+   hand all game by definition, so every card that reaches into a hand skips
+   it. Sir Rowan pickpocketing somebody's boast was funny exactly once. */
+function takeableHand(g, col) {
+  return g.hands[col].map((id, i) => [id, i]).filter(([id]) => id !== 'gauntlet');
 }
 function trapAt(g,r,c){ return g.effects.traps.find(t => t.r===r && t.c===c); }
 function pieceAt(g,r,c){ return g.state.board[idx(r,c)]; }
@@ -401,18 +421,18 @@ const NO_TARGET_REASON = {
 
 /* Requirements for cards that need no target. Return a reason string if unplayable. */
 const ZERO_REQ = {
-  spy: (g, col) => !g.hands[opp(col)].length && 'Your opponent has no cards to spy on.',
-  pickpocket: (g, col) => !g.hands[opp(col)].length && 'Your opponent has no cards to steal.',
+  spy: (g, col) => !takeableHand(g, opp(col)).length && 'Your opponent has no cards to spy on.',
+  pickpocket: (g, col) => !takeableHand(g, opp(col)).length && 'Your opponent has no cards to steal.',
   rewind: (g, col) => !canRewind(g, col) && 'Only works right after your opponent has moved a piece.',
   quake: g => !g.state.board.some(p => p && ptype(p) === 'p') && 'There are no pawns left to shake.',
   meteor: (g, col) => !meteorPool(g, col).length && 'There is nothing in the enemy half for the meteors to hit.',
-  pilfer: (g, col) => !g.hands[opp(col)].length && 'Your opponent is holding no cards.',
-  saboteur: (g, col) => !g.hands[opp(col)].length && 'Your opponent has no cards left to burn.',
+  pilfer: (g, col) => !takeableHand(g, opp(col)).length && 'Your opponent is holding no cards.',
+  saboteur: (g, col) => !takeableHand(g, opp(col)).length && 'Your opponent has no cards left to burn.',
   hail: (g, col) => !pieceSquares(g, opp(col)).some(t => !isFrozen(g,t.r,t.c)) && 'Every enemy piece is frozen already.',
   tracker: (g, col) => !g.effects.traps.some(t => t.owner !== col && !(t.seen || []).includes(col)) && 'There are no hidden enemy traps to find.',
-  gambler: (g, col) => g.hands[col].length < 2 && 'You need another card in hand to trade away.',
+  gambler: (g, col) => takeableHand(g, col).length < 1 && 'You need another card in hand to trade away.',
   grandgambit: (g, col) => !g.decks[col].length && 'Your deck is empty.',
-  timelock: (g, col) => !g.hands[opp(col)].length && 'Your opponent has no cards to lock away.',
+  timelock: (g, col) => !takeableHand(g, opp(col)).length && 'Your opponent has no cards to lock away.',
   tidal: (g, col) => !tidalMoves(g, opp(col)).length && 'No enemy pawn can be pushed back right now.',
   sanctuary: (g, col) => { const k = findKing(g.state, col); return !adjacentSquares(k.r, k.c).some(a => color(pieceAt(g,a.r,a.c)) === col) && 'None of your pieces are standing next to your king.'; },
 };
@@ -420,6 +440,8 @@ const RANDOM_CARDS = ['quake', 'meteor', 'hail'];
 
 function cardPlayable(g, id, col) {
   syncWalls(g);
+  if (id === 'gauntlet') return { ok:false, gilded:true,
+    reason:'The Gauntlet is not for playing. You are fighting with two cards and they can see it.' };
   if (id === 'kingguard') return { ok:false, passive:true, reason:'Passive: it saves your king automatically if you would be checkmated.' };
   if (isSilenced(g, col)) return { ok:false, reason:'Time Lock. You cannot play any cheat card this turn.' };
   const checked = inCheck(g.state, col);
@@ -479,10 +501,12 @@ function applyCard(g, id, picks, col) {
       break;
     }
     case 'chain': {
+      /* Three pawns, not four: one card taking four was the best thing in the
+         game by a distance. */
       const path = [picks[0]];
-      for (let k=0; k<path.length && path.length < 4; k++) {
+      for (let k=0; k<path.length && path.length < CHAIN_MAX; k++) {
         for (const a of adjacentSquares(path[k].r, path[k].c)) {
-          if (path.length >= 4) break;
+          if (path.length >= CHAIN_MAX) break;
           if (pieceAt(g,a.r,a.c) === enemy+'p' && !path.some(q => q.r===a.r && q.c===a.c)) path.push(a);
         }
       }
@@ -553,10 +577,11 @@ function applyCard(g, id, picks, col) {
     }
     case 'pickpocket': {
       const h = g.hands[enemy];
-      if (h.length) {
+      const takeable = takeableHand(g, enemy);
+      if (takeable.length) {
         /* take something you are not already holding, so a hand never doubles up */
-        const fresh = h.map((id2, i) => [id2, i]).filter(([id2]) => !g.hands[col].includes(id2));
-        const pool = fresh.length ? fresh : h.map((id2, i) => [id2, i]);
+        const fresh = takeable.filter(([id2]) => !g.hands[col].includes(id2));
+        const pool = fresh.length ? fresh : takeable;
         const [, at] = rndPick(g, pool);
         res.stolen = h.splice(at, 1)[0];
         g.hands[col].push(res.stolen);
@@ -778,7 +803,11 @@ function applyCard(g, id, picks, col) {
     }
     case 'saboteur': {
       const h = g.hands[enemy];
-      if (h.length) res.burned = h.splice(rndInt(g, h.length), 1)[0];
+      const takeable = takeableHand(g, enemy);
+      if (takeable.length) {
+        const [, at] = rndPick(g, takeable);
+        res.burned = h.splice(at, 1)[0];
+      }
       events.push({ fx:'burn' });
       break;
     }
@@ -789,16 +818,17 @@ function applyCard(g, id, picks, col) {
       break;
     }
     case 'gambler': {
-      const n = g.hands[col].length;
-      g.hands[col] = [];
+      const keep = g.hands[col].filter(id => id === 'gauntlet');
+      const n = g.hands[col].length - keep.length;
+      g.hands[col] = keep;
       res.discarded = n;
       res.drawn = drawCards(g, col, n);
       events.push({ fx:'burn' });
       break;
     }
     case 'spy': {
-      const h = g.hands[enemy];
-      if (h.length) res.peek = h[rndInt(g, h.length)];
+      const takeable = takeableHand(g, enemy);
+      if (takeable.length) res.peek = rndPick(g, takeable)[0];
       break;
     }
     case 'hourglass':
@@ -854,6 +884,7 @@ function applyCard(g, id, picks, col) {
 
 /* Play a card for real: remove it from hand, apply it, then pass the turn. */
 function playCard(g, id, picks, col) {
+  if (id === 'gauntlet') return { events:[], drawn:[] };   /* it is not playable, ever */
   const h = g.hands[col];
   const i = h.indexOf(id);
   if (i >= 0) h.splice(i, 1);

@@ -540,3 +540,12 @@
 .hall-game.invite{ background:linear-gradient(180deg, rgba(92,74,24,.95), rgba(44,32,8,.95));
   box-shadow:0 0 0 1.5px rgba(232,193,106,.75), 0 4px 14px rgba(0,0,0,.45); }
 .hall-game.invite .hall-game-dot{ background:var(--gold-hi); box-shadow:0 0 10px rgba(232,193,106,.9); }
+
+/* the level, beside the rank */
+.lobby-rank .rank-level{ display:inline-block; margin-left:.5em; font-family:var(--f-body);
+  font-weight:800; font-size:.62rem; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-mute); vertical-align:middle; }
+
+.hall-game-x{ flex:0 0 auto; width:24px; height:24px; margin-left:4px; border-radius:50%;
+  font-size:1rem; line-height:1; color:var(--ink-mute); background:rgba(0,0,0,.25); }
+.hall-game-x:active{ color:#ffd9d2; }

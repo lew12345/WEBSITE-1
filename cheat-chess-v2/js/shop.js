@@ -47,19 +47,49 @@ const SHOP = {
     { id:'dragon',     name:'Elder Dragon', premium:true, desc:'Full grown, deep crimson, and completely unbothered by rules.' },
   ],
 };
-/* One purchase unlocks every Legendary item. Change the price here and in the Play Console. */
-const LEGENDARY_PACK = {
-  productId:'cc_legendary_pack',
-  price:'2.99',
-  name:'Legendary Pack',
-  blurb:'Every Legendary item in one go: two chess sets, two regalia, two suits of armour and the Elder Dragon. Looks only, no advantage in a game.',
-  /* the three shown on the banner, one from each of the main slots */
-  showcase:[{ tab:'pieces', id:'infernal' }, { tab:'armour', id:'runestone' }, { tab:'outfits', id:'void' }],
+/* -------------------------------------------------------------------- packs
+   Two things to buy, because they are two different wants: the champion you
+   are looking at, and the room he is standing in. Each is one payment, and
+   nothing in either changes the rules, the cards or the odds.
+
+   Anyone who bought the single Legendary Pack before the split keeps the lot:
+   see migrateProfile. */
+const PACKS = {
+  champion: {
+    id:'champion', productId:'cc_champion_pack', price:'2.99', name:'Legendary Champion Pack',
+    blurb:'Every Legendary thing your champion can wear or bring: two suits of armour, two regalia, two chess sets and the Elder Dragon.',
+    slots:['armour', 'outfits', 'pieces', 'pets'],
+    showcase:[{ tab:'armour', id:'runestone' }, { tab:'outfits', id:'void' }, { tab:'pieces', id:'infernal' }],
+  },
+  hall: {
+    id:'hall', productId:'cc_hall_pack', price:'1.99', name:'Legendary Hall Pack',
+    blurb:"Every Legendary thing in the hall itself: Dragon Keep and Starfall Sanctum, the Emberweave runner and the dragon crest.",
+    slots:['halls', 'carpets', 'crests'],
+    showcase:[],
+  },
 };
-function legendaryItems() {
-  return Object.entries(SHOP).flatMap(([tab, list]) => list.filter(i => i.premium).map(i => ({ tab, ...i })));
+/* Which pack a shelf belongs to. */
+const PACK_OF_SLOT = { armour:'champion', outfits:'champion', pieces:'champion', pets:'champion',
+                       halls:'hall', carpets:'hall', crests:'hall' };
+function packFor(slot){ return PACK_OF_SLOT[slot] || 'champion'; }
+function packItems(packId) {
+  const pack = PACKS[packId];
+  const out = Object.entries(SHOP).flatMap(([tab, list]) =>
+    pack.slots.includes(tab) ? list.filter(i => i.premium).map(i => ({ tab, ...i })) : []);
+  if (packId === 'hall' && typeof HALLS !== 'undefined') {
+    out.push(...HALLS.filter(h => h.premium).map(h => ({ tab:'halls', ...h })));
+    out.push(...HALL_CARPETS.filter(h => h.premium).map(h => ({ tab:'carpets', ...h })));
+    out.push(...HALL_CRESTS.filter(h => h.premium).map(h => ({ tab:'crests', ...h })));
+  }
+  return out;
 }
-function ownsPack(){ return !!Progress.data.owned.legendaryPack; }
+function ownsPack(packId){ return !!(Progress.data.owned.packs || {})[packId || 'champion']; }
+function ownsGauntlet(){ return !!Progress.data.owned.gauntlet; }
+/* The cards you may put in a deck: your collection, plus the Gauntlet if you
+   have bought it. */
+function deckableCards(){ return ownsGauntlet() ? ownedCards().concat(GAUNTLET_ID) : ownedCards(); }
+/* What the Gauntlet costs, and what it is. */
+const GAUNTLET_SKU = { productId:'cc_gauntlet', price:'1.99', name:'The Gauntlet' };
 function allChallengesDone(){ return ACHIEVEMENTS.every(a => Progress.data.achieved[a.id]); }
 
 const SHOP_TABS = [
@@ -73,7 +103,7 @@ const SLOT_OF = { pieces:'pieces', armour:'gear', outfits:'gear', pets:'pets' };
 function shopItem(tab, id){ return SHOP[tab].find(i => i.id === id); }
 function ownsItem(tab, id) {
   const item = shopItem(tab, id);
-  if (item && item.premium) return ownsPack();
+  if (item && item.premium) return ownsPack(packFor(tab));
   return (Progress.data.owned[SLOT_OF[tab]] || []).includes(id);
 }
 function itemLocked(tab, id) {
@@ -114,33 +144,41 @@ const Billing = {
     const cap = window.Capacitor && window.Capacitor.Plugins;
     return !!(cap && cap.GooglePlayBilling);
   },
-  grantPack() {
-    Progress.data.owned.legendaryPack = true;
+  grant(what) {
+    const o = Progress.data.owned;
+    if (what === 'gauntlet') o.gauntlet = true;
+    else (o.packs || (o.packs = {}))[what] = true;
     Progress.save();
   },
-  async buyPack() {
-    if (ownsPack()) return { ok:true };
+  /* what: a pack id, or 'gauntlet' */
+  async buy(what) {
+    const sku = what === 'gauntlet' ? GAUNTLET_SKU : PACKS[what];
+    if (!sku) return { ok:false, reason:'Nothing to buy there.' };
+    if (what === 'gauntlet' ? ownsGauntlet() : ownsPack(what)) return { ok:true };
     if (!this.available()) {
-      /* TEST BUILD: no Play billing here, so the button just unlocks the pack so
-         testers can see the Legendary items. Set TEST_UNLOCK to false for release. */
-      if (TEST_UNLOCK) { this.grantPack(); return { ok:true, test:true }; }
-      return { ok:false, reason:'The Legendary Pack is not on sale yet. It is coming in a future update.' };
+      /* TEST BUILD: no Play billing here, so the button hands it over and says
+         so, which is how testers see the paid things. False for release. */
+      if (TEST_UNLOCK) { this.grant(what); return { ok:true, test:true }; }
+      return { ok:false, reason:`${sku.name} is not on sale yet. It is coming in a future update.` };
     }
     try {
-      const res = await window.Capacitor.Plugins.GooglePlayBilling.purchase({ productId:LEGENDARY_PACK.productId });
-      if (res && res.purchased) { this.grantPack(); return { ok:true }; }
+      const res = await window.Capacitor.Plugins.GooglePlayBilling.purchase({ productId:sku.productId });
+      if (res && res.purchased) { this.grant(what); return { ok:true }; }
       return { ok:false, reason:'Purchase cancelled.' };
     } catch (e) {
       return { ok:false, reason:'That purchase could not be completed.' };
     }
   },
-  /* Call on start-up so a pack bought on another device comes back. */
+  /* Call on start-up so anything bought on another device comes back. */
   async restore() {
     if (!this.available()) return;
     try {
       const res = await window.Capacitor.Plugins.GooglePlayBilling.getPurchases();
-      const owned = (res && res.purchases || []).some(x => x.productId === LEGENDARY_PACK.productId);
-      if (owned) this.grantPack();
+      const have = (res && res.purchases || []).map(x => x.productId);
+      for (const id of Object.keys(PACKS)) if (have.includes(PACKS[id].productId)) this.grant(id);
+      if (have.includes(GAUNTLET_SKU.productId)) this.grant('gauntlet');
+      /* the pack that existed before the split still unlocks both */
+      if (have.includes('cc_legendary_pack')) { this.grant('champion'); this.grant('hall'); }
     } catch (e) {}
   },
 };

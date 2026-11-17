@@ -50,6 +50,9 @@ function rankName(level) {
   const tier = RANK_TIERS[Math.min(RANK_TIERS.length - 1, Math.floor((level - 1) / 10))];
   return `${tier} ${ROMAN[(level - 1) % 10]}`;
 }
+/* The rank says what you are; the level says how far along you are. Both, so
+   two players can tell at a glance who has put the hours in. */
+function rankLine(level){ return `${rankName(level)} \u00b7 Level ${level}`; }
 
 const Progress = (() => {
   const KEY = 'cheatchess.progress.v2';
@@ -58,7 +61,8 @@ const Progress = (() => {
     xp:{ lifetime:0, balance:0 },
     milestonesClaimed:0,
     owned:{ cards:CORE_IDS.slice(), pieces:['classic'], gear:['none'], pets:['none'],
-            halls:['stone'], carpets:['none'], crests:['pawn'], legendaryPack:false },
+            halls:['stone'], carpets:['none'], crests:['pawn'],
+            packs:{ champion:false, hall:false }, gauntlet:false, legendaryPack:false },
     equipped:{ pieces:'classic', hall:'stone', carpet:'none', crest:'pawn' },
     deck:CORE_IDS.slice(),
     achieved:{}, seen:[],
@@ -105,6 +109,13 @@ function migrateProfile() {
     if (a.skin >= AVATAR_ART.skins) a.skin = 1;
     delete a.outfit; delete a.armour;
   }
+  /* The one Legendary Pack became two. Anyone who had it keeps everything in
+     both: a split must never take something away from somebody who paid. */
+  if (!o.packs) o.packs = { champion:!!o.legendaryPack, hall:!!o.legendaryPack };
+  if (o.legendaryPack) { o.packs.champion = true; o.packs.hall = true; }
+  if (typeof o.gauntlet !== 'boolean') o.gauntlet = false;
+  /* and the Gauntlet is bought, so it never sits in the collection */
+  if (Array.isArray(o.cards)) o.cards = o.cards.filter(id => id !== 'gauntlet');
   if (!d.glory) d.glory = { run:0, immortal:false, best:0, held:0 };
   if (!d.vs || typeof d.vs !== 'object') d.vs = {};
   if (!d.nicknames || typeof d.nicknames !== 'object') d.nicknames = {};
@@ -181,6 +192,20 @@ function recordVs(friendId, result) {
 }
 function vsRecord(friendId){ return (P.vs && P.vs[friendId]) || null; }
 function vsText(r){ return r ? `${r.w}W ${r.l}L ${r.d}D` : ''; }
+
+/* ----------------------------------------------------------- mastery -----
+   Every cast has always been counted. Cast one card enough and its art turns
+   foil, for good, on every copy of it you ever draw. */
+/* Your record against the computer, all three levels together. */
+function soloRecord() {
+  const ai = (Store.stats && Store.stats.ai) || {};
+  const sum = k => ['easy', 'medium', 'hard'].reduce((n, lv) => n + ((ai[lv] || {})[k] || 0), 0);
+  return { w:sum('w'), l:sum('l'), d:sum('d') };
+}
+
+function cardCasts(id){ return (Store.stats.cardUse || {})[id] || 0; }
+function isMastered(id){ return cardCasts(id) >= MASTERY_CASTS; }
+function masteryProgress(id){ return Math.min(1, cardCasts(id) / MASTERY_CASTS); }
 
 /* ------------------------------------------------------- games in progress
    A friend match lives on the server; this is only the note of where to find
@@ -325,10 +350,12 @@ function checkAchievements() {
 
 /* ------------------------------------------------------------ deck */
 function validDeck(deck) {
-  const owned = ownedCards();
+  const owned = typeof deckableCards === 'function' ? deckableCards() : ownedCards();
   const clean = (deck || []).filter((id, i, arr) => owned.includes(id) && arr.indexOf(id) === i);
   if (clean.length === DECK_SIZE) return clean;
-  const rest = owned.filter(id => !clean.includes(id));
+  /* a short deck fills itself up, but never with the Gauntlet: that is a
+     choice you make, not one the game makes for you */
+  const rest = owned.filter(id => !clean.includes(id) && id !== 'gauntlet');
   while (clean.length < DECK_SIZE && rest.length) clean.push(rest.splice((Math.random() * rest.length) | 0, 1)[0]);
   return clean.slice(0, DECK_SIZE);
 }
@@ -339,7 +366,8 @@ function playerDeck() {
 }
 /* The computer brings its own 20, drawn from the whole card pool. */
 function aiDeck(level) {
-  const pool = CARDS.filter(c => level === 'easy' ? ['common','rare'].includes(c.rarity) : level === 'medium' ? c.rarity !== 'legendary' : true).map(c => c.id);
+  const pool = CARDS.filter(c => (c.set === 'core' || c.set === 'relic') &&
+    (level === 'easy' ? ['common','rare'].includes(c.rarity) : level === 'medium' ? c.rarity !== 'legendary' : true)).map(c => c.id);
   return shuffleDeck(pool).slice(0, DECK_SIZE);
 }
 
